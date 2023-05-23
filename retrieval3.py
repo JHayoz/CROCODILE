@@ -261,7 +261,7 @@ else: #MCMC
                      output_files = OUTPUT_DIR,
                      title = 'Walkers of '+RETRIEVAL_NAME
                      )
-
+"""
 nb_positions = len(samples)
 percent_considered = 1.
 if BAYESIAN_METHOD == 'mcmc':
@@ -294,4 +294,4 @@ if not path.exists(OUTPUT_DIR + 'CC_function'):
             plot_SNR(CONFIG_DICT,wlen_CC,flux_CC,CC_wlen_data,CC_flux_data,output_file = OUTPUT_DIR,title='C-C function for '+RETRIEVAL_NAME+' '+VERSION,printing=True)
         except:
             pass
-
+"""

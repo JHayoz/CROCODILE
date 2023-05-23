@@ -205,7 +205,7 @@ class Retrieval:
         # cut what I don't need to improve speed
         #wlen_cut,flux_cut = trim_spectrum(wlen,flux,wlen_data,threshold=5000,keep=1000)
         
-        wlen_removed,flux_removed,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(wlen,flux,wlen_data,win_len = self.config['WIN_LEN'],method='linear',filter_method = 'only_gaussian',convert = self.config['CONVERT_SINFONI_UNITS'],log_R=temp_params['log_R'],distance=self.config['DISTANCE'])
+        wlen_removed,flux_removed,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(wlen,flux,wlen_data,win_len = self.config['WIN_LEN'],method='linear',filter_method = 'only_gaussian',convert = True,log_R=temp_params['log_R'],distance=self.config['DISTANCE'])
         
         if sum(np.isnan(flux_rebin))>0:
             self.NaN_spectRES += 1
@@ -251,7 +251,7 @@ class Retrieval:
             print('Cant Dopplershift too much')
             self.nb_failed_DS += 1
         
-        wlen_removed,flux_removed,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(wlen_removed,flux_removed,wlen_data,win_len = self.config['WIN_LEN'],method='datalike',filter_method = 'only_gaussian',convert = self.config['CONVERT_SINFONI_UNITS'],log_R=temp_params['log_R'],distance=self.config['DISTANCE'])
+        wlen_removed,flux_removed,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(wlen_removed,flux_removed,wlen_data,win_len = self.config['WIN_LEN'],method='datalike',filter_method = 'only_gaussian',convert = True,log_R=temp_params['log_R'],distance=self.config['DISTANCE'])
         
         assert(len(wlen_removed) == len(wlen_data))
         
@@ -348,6 +348,9 @@ class Retrieval:
         if 'log_R' not in temp_params.keys() and 'R' in temp_params.keys():
             temp_params['log_R'] = np.log10(temp_params['R'])
         
+        physical_params = {}
+        physical_params['log_gravity'] = temp_params['log_gravity']
+        
         self.function_calls += 1
         
         if self.timing:
@@ -404,7 +407,8 @@ class Retrieval:
             wlen_ck,flux_ck = self.forwardmodel_ck.calc_spectrum(
                       chem_model_params = chem_params,
                       temp_model_params = temp_params,
-                      clouds_params = clouds_params,
+                      cloud_model_params = clouds_params,
+                      physical_params = physical_params,
                       external_pt_profile = None,
                       return_profiles = False)
             
@@ -440,11 +444,12 @@ class Retrieval:
             
             for interval_key in self.lbl_itvls.keys():
                 wlen_lbl,flux_lbl = self.forwardmodel_lbl[interval_key].calc_spectrum(
-                          chem_model_params = chem_params,
-                          temp_model_params = temp_params,
-                          clouds_params = clouds_params,
-                          external_pt_profile = None,
-                          return_profiles = False)
+                      chem_model_params = chem_params,
+                      temp_model_params = temp_params,
+                      cloud_model_params = clouds_params,
+                      physical_params = physical_params,
+                      external_pt_profile = None,
+                      return_profiles = False)
                 
                 if sum(np.isnan(flux_lbl))>0 or sum(np.isnan(wlen_lbl))>0:
                     self.NaN_spectra += 1

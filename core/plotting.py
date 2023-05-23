@@ -1229,6 +1229,7 @@ def plot_retrieved_temperature_profile(
     params_names = config['PARAMS_NAMES']
     data_params = config['DATA_PARAMS']
     
+    temp_model = config['TEMP_MODEL']
     temp_params_names = config['TEMPS']
     unsearched_temp_params = config['UNSEARCHED_TEMPS']
     
@@ -1239,22 +1240,19 @@ def plot_retrieved_temperature_profile(
     if 'P0' in params_names:
         temp_params['P0'] = np.median(samples[:,params_names.index('P0')])
     
-    pressures = np.logspace(-6,temp_params['P0'],100)
-    
     temp_curves = np.zeros((len(samples),len(pressures)))
     for pos_i,position in enumerate(samples):
         
         for param_i,param in enumerate(params_names):
             if param in temp_params_names:
                 temp_params[param] = position[param_i]
+                
+        pressures,temperatures = get_temperatures(
+            temp_model=temp_model,
+            temp_model_params=temp_params)
         
-        temp_curves[pos_i] = physics.guillot_global(
-                pressures,
-                1e1**temp_params['log_kappa_IR'],
-                1e1**temp_params['log_gamma'],
-                1e1**temp_params['log_gravity'],
-                temp_params['t_int'],
-                temp_params['t_equ'])
+        temp_curves[pos_i] = temperatures
+        
     quantiles = [(1-0.9973)/2,
                  (1-0.9545)/2,
                  (1-0.6827)/2,
@@ -1264,13 +1262,11 @@ def plot_retrieved_temperature_profile(
                  1-(1-0.9973)/2][3-nb_stds:3+nb_stds+1]
     quantile_curves = np.quantile(temp_curves,q=quantiles,axis = 0)
     
-    data_pressures = np.logspace(-6,data_params['P0'],100)
-    data_temperatures = physics.guillot_global(data_pressures,
-                1e1**data_params['log_kappa_IR'],
-                1e1**data_params['log_gamma'],
-                1e1**data_params['log_gravity'],
-                data_params['t_int'],
-                data_params['t_equ'])
+    
+    data_pressures,data_temperatures = get_temperatures(
+            temp_model=data_params['TEMP_MODEL'],
+            temp_model_params=data_params)
+    
     if plot_data:
         ax.plot(data_temperatures,data_pressures,color = 'r',ls='--',lw=lw*2,label='True $T_{\mathrm{equ}}$: '+'{v}'.format(v=data_params['t_equ']) + ' K')
     # median curve
@@ -1428,15 +1424,9 @@ def plot_retrieved_abunds(
     temp_params_names = config['TEMPS']
     unsearched_temp_params = config['UNSEARCHED_TEMPS']
     
-    
-    pressures = np.logspace(-6, data_params['P0'], 100)
-    temperatures = physics.guillot_global(
-                pressures,
-                1e1**data_params['log_kappa_IR'],
-                1e1**data_params['log_gamma'],
-                1e1**data_params['log_gravity'],
-                data_params['t_int'],
-                data_params['t_equ'])
+    pressures,temperatures = get_temperatures(
+        temp_model=CONFIG_DICT['DATA_PARAMS']['TEMP_MODEL'],
+        temp_model_params=CONFIG_DICT['DATA_PARAMS'])
     
     quantiles = [(1-0.9973)/2,
                  (1-0.9545)/2,
