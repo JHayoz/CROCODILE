@@ -110,9 +110,9 @@ class ForwardModel:
         
         if self.chem_model == 'chem_equ':
             if self.mode == 'c-k':
-                self.line_opacities = poor_mans_abunds_ck()
+                self.line_opacities = poor_mans_abunds_ck().copy()
             else:
-                self.line_opacities = poor_mans_abunds_lbl()
+                self.line_opacities = poor_mans_abunds_lbl().copy()
             if self.only_include != 'all':
                 self.line_opacities = self.only_include
                 if include_H2:

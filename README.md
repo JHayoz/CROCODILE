@@ -21,7 +21,7 @@ Finally, depending on which opacity database is being used and where it is insta
 ```
 os.environ["pRT_input_data_path"] = "/your_absolute_path_to/petitRADTRANS/input_data"
 ```
-To tell CROCODILE what the names of the opacities are, one needs to modify the functions poor_mans_abunds_lbl and poor_mans_abunds_ck in core.util.py to return the correct names. For example, with the standard installation of petitRADTRANS, the opacity of water is denoted by the name "H2O_main_iso", however if one is using another database where water is called "H2O_Chubb", then one needs to write that into the poor_mans_abunds_lbl and poor_mans_abunds_ck functions.
+To tell CROCODILE what the names of the opacities are, one needs to modify the file config_petitRADTRANS to contain the correct names. For example, with the standard installation of petitRADTRANS, the opacity of water is denoted by the name "H2O_main_iso", however if one is using another database where water is called "H2O_Chubb", then one needs to write that into the poor_mans_abunds_lbl and poor_mans_abunds_ck functions.
 
 
 ### Citations

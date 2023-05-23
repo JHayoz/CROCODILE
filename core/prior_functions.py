@@ -1,12 +1,13 @@
 from scipy.special import erfcinv
 from scipy.stats import truncnorm,skewnorm,gaussian_kde,norm
 from scipy.optimize import curve_fit
+from numpy import inf
 
 # log(0) outside [a,b], else log(1)
 def a_b_range(x,arr):
     a,b = arr
     if x > b or x < a:
-        return -np.inf
+        return -inf
     else:
         return 0.
 

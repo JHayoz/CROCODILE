@@ -903,7 +903,7 @@ def plot_retrieved_spectra_FM_dico(
     med_par = np.median(samples,axis=0)
     
     median_chem_params,median_temp_params,median_clouds = fix_params(config,med_par)
-    print(median_abunds,median_temps,median_clouds)
+    print(median_chem_params,median_temp_params,median_clouds)
     
     if data_obj.RESinDATA():
         RES_wvl_data,RES_flux_data,RES_cov_data,inverse_cov,flux_err_data = data_obj.getRESSpectrum()
@@ -917,7 +917,7 @@ def plot_retrieved_spectra_FM_dico(
         wlen_ck,flux_ck = retrieval.forwardmodel_ck.calc_spectrum(
                       chem_model_params = median_chem_params,
                       temp_model_params = median_temp_params,
-                      clouds_params = median_clouds,
+                      cloud_model_params = median_clouds,
                       external_pt_profile = None,
                       return_profiles = False)
         
@@ -941,7 +941,7 @@ def plot_retrieved_spectra_FM_dico(
             wlen_lbl[interval_key],flux_lbl[interval_key] = retrieval.forwardmodel_lbl[interval_key].calc_spectrum(
                       chem_model_params = median_chem_params,
                       temp_model_params = median_temp_params,
-                      clouds_params = median_clouds,
+                      cloud_model_params = median_clouds,
                       external_pt_profile = None,
                       return_profiles = False)
             if data_obj.CCinDATA():
@@ -1240,7 +1240,7 @@ def plot_retrieved_temperature_profile(
     if 'P0' in params_names:
         temp_params['P0'] = np.median(samples[:,params_names.index('P0')])
     
-    temp_curves = np.zeros((len(samples),len(pressures)))
+    temp_curves = np.zeros((len(samples),100))
     for pos_i,position in enumerate(samples):
         
         for param_i,param in enumerate(params_names):
@@ -1425,8 +1425,8 @@ def plot_retrieved_abunds(
     unsearched_temp_params = config['UNSEARCHED_TEMPS']
     
     pressures,temperatures = get_temperatures(
-        temp_model=CONFIG_DICT['DATA_PARAMS']['TEMP_MODEL'],
-        temp_model_params=CONFIG_DICT['DATA_PARAMS'])
+        temp_model=config['DATA_PARAMS']['TEMP_MODEL'],
+        temp_model_params=config['DATA_PARAMS'])
     
     quantiles = [(1-0.9973)/2,
                  (1-0.9545)/2,

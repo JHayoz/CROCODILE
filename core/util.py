@@ -20,6 +20,8 @@ from scipy.special import erfcinv
 from scipy.stats import truncnorm,skewnorm,gaussian_kde,norm
 from scipy.optimize import curve_fit
 
+from config_petitRADTRANS import *
+
 from itertools import product
 
 
@@ -627,12 +629,9 @@ def calc_FeH_ratio_from_samples(samples,params_names,abundances,percent_consider
     return FeH_ratio_sampled
 
 def poor_mans_abunds_lbl():
-    #return ['H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','H2S_main_iso','NH3_main_iso','FeH_main_iso','HCN_main_iso','TiO_all_iso','PH3_main_iso','K', 'VO','Na','He','H2']
-    #return ['H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','H2S_main_iso','NH3_main_iso','FeH_main_iso','HCN_main_iso','TiO_all_iso','PH3_main_iso','K', 'VO','Na','He','H2']#,'SiO_main_iso']
-    return ['H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','H2S_main_iso','NH3_main_iso','FeH_main_iso','HCN_main_iso','TiO_all_iso','PH3_main_iso','K', 'VO','Na','He','H2']#,'SiO_main_iso']
+    return POOR_MANS_ABUND_LBL
 def poor_mans_abunds_ck():
-    #return ['H2O','CO','CH4','CO2','H2S','NH3_HITRAN','FeH_Chubb','HCN','TiO','PH3','K', 'VO','Na','He','H2']
-    return ['H2O','CO','CH4','CO2','H2S','NH3_HITRAN','FeH_Chubb','HCN','TiO','PH3','K', 'VO','Na','He','H2']#,'SiO_Chubb']
+    return POOR_MANS_ABUND_CK
 
 def poor_mans_ck_and_lbl(molecule,mode):
     abunds_ck = poor_mans_abunds_ck()

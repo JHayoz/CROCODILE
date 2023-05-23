@@ -121,16 +121,15 @@ def chem_equ_model(
     """
     COs = chem_model_params['C/O']*np.ones_like(pressures)
     FeHs = chem_model_params['FeHs']*np.ones_like(pressures)
-    
+    if 'Pquench_carbon' not in chem_model_params.keys():
+        chem_model_params['Pquench_carbon'] = None
     mass_fractions = poor_mans_nonequ_chem.interpol_abundances(
         COs,
         FeHs,
         temperatures,
         pressures,
         Pquench_carbon = chem_model_params['Pquench_carbon'])
-    
     abundances = filter_relevant_mass_fractions(mass_fractions,mode)
-    
     return pressures,abundances
 
 def get_abundances(

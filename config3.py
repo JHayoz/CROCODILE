@@ -18,7 +18,7 @@ MACHINE = 'sunray'
 # name of retrieval run
 NUMBER = ''
 RETRIEVAL_NAME_INPUT = 'My_spectrum_v01'
-VERSION = '01'
+VERSION = 'chem_equ'
 #DATA_TYPE = 'LRSP'
 DATA_TYPE = 'CROC'
 #DATA_TYPE = 'CC'
@@ -89,7 +89,7 @@ PLOTTING_THRESHOLD = 10
 # Define forward model
 
 # Chemical model
-CHEM_MODEL = 'free' # 'free' or 'chem_equ'
+CHEM_MODEL = 'chem_equ' # 'free' or 'chem_equ'
 #ABUNDANCES = ['H2O_main_iso','CO_main_iso','CH4_main_iso']
 if CHEM_MODEL == 'free':
     #ABUNDANCES = ['H2O_main_iso','CH4_main_iso', 'CO_main_iso', 'CO2_main_iso','H2S_main_iso','FeH_main_iso','TiO_all_iso','K','VO']
@@ -129,8 +129,11 @@ UNSEARCHED_PARAMS = [UNSEARCHED_TEMPS, UNSEARCHED_ABUNDS, UNSEARCHED_CLOUDS]
 ALL_PARAMS = TEMP_PARAMS + ABUNDANCES + CLOUDS + UNSEARCHED_TEMPS + UNSEARCHED_ABUNDS + UNSEARCHED_CLOUDS
 NEEDED_LINE_SPECIES = ABUNDANCES + UNSEARCHED_ABUNDS
 
+
+
 if CHEM_MODEL == 'chem_equ':
-    NEEDED_LINE_SPECIES += MOL_ABUNDS_KEYS_LBL
+    from config_petitRADTRANS import *
+    NEEDED_LINE_SPECIES += POOR_MANS_ABUND_LBL
     if 'C/O' in NEEDED_LINE_SPECIES:
         NEEDED_LINE_SPECIES.remove('C/O')
     if 'FeHs' in NEEDED_LINE_SPECIES:
