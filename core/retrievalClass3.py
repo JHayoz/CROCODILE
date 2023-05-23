@@ -120,35 +120,20 @@ class Retrieval:
                  line_opacities = self.config['ABUNDANCES'] + self.config['UNSEARCHED_ABUNDANCES'],
                  cont_opacities= ['H2-H2','H2-He'],
                  rayleigh_scat = ['H2','He'],
-        cloud_model = self.config['CLOUD_MODEL'],
-        cloud_species = self.config['CLOUDS_OPACITIES'].copy(),
+                 cloud_model = self.cloud_model,
+                 cloud_species = self.config['CLOUDS_OPACITIES'].copy(),
                  do_scat_emis = self.config['DO_SCAT_CLOUDS'],
-        chem_model = CHEM_MODEL,
-        temp_model = TEMP_MODEL,
+                 chem_model = self.chem_model,
+                 temp_model = self.temp_model,
                  max_RV = 0,
-                 max_winlen = 0
-        include_H2 = True,
-        only_include = 'all'
+                 max_winlen = 0,
+                 include_H2 = True,
+                 only_include = 'all'
                  )
             self.forwardmodel_ck.calc_rt_obj(lbl_sampling = None)
             
-            forwardmodel_lbl = ForwardModel(wlen_borders=wlen_borders_lbl,
-        max_wlen_stepsize=max_wlen_stepsize,
-        mode='lbl',
-        line_opacities=ABUNDANCES,
-        cont_opacities= ['H2-H2','H2-He'],
-        rayleigh_scat = ['H2','He'],
-        cloud_model = clouds,
-        cloud_species = cloud_species.copy(),
-        do_scat_emis = do_scat_emis,
-        chem_model = CHEM_MODEL,
-        temp_model = TEMP_MODEL,
-        max_RV = RV,
-        max_winlen = WINDOW_LENGTH_LBL,
-        include_H2 = True,
-        only_include = 'all')
         
-        print(self.config['CLOUD_MODEL'])
+        print(self.cloud_model)
         print(self.config['CLOUDS_OPACITIES'])
         
         if self.data_obj.CCinDATA() or (self.data_obj.RESinDATA() and 'lbl' in [self.data_obj.RES_data_info[key][0] for key in self.data_obj.RES_data_info.keys()]):
@@ -164,34 +149,23 @@ class Retrieval:
                      max_wlen_stepsize = max_wlen_stepsize,
                      mode = 'lbl',
                      line_opacities = self.config['ABUNDANCES'] + self.config['UNSEARCHED_ABUNDANCES'],
-                     model = self.model,
-                     clouds = self.config['CLOUD_MODEL'],
+                     cont_opacities= ['H2-H2','H2-He'],
+                     rayleigh_scat = ['H2','He'],
+                     cloud_model = self.cloud_model,
                      cloud_species = self.config['CLOUDS_OPACITIES'].copy(),
                      do_scat_emis = self.config['DO_SCAT_CLOUDS'],
+                     chem_model = self.chem_model,
+                     temp_model = self.temp_model,
                      max_RV = 2*max(abs(self.config['RVMIN']),self.config['RVMAX']),
-                     max_winlen = int(1.5*self.config['WIN_LEN'])
+                     max_winlen = int(1.5*self.config['WIN_LEN']),
+                     include_H2 = True,
+                     only_include = 'all'
                      )
                 self.forwardmodel_lbl[interval_key].calc_rt_obj(lbl_sampling = self.config['LBL_SAMPLING'])
             
             print('THERE ARE {val} FMs USING LBL MODE'.format(val=len(list(self.forwardmodel_lbl.keys()))))
             print('Their wlen range are:',[self.forwardmodel_lbl[key].wlen_borders for key in self.forwardmodel_lbl.keys()])
             
-            """
-            wlen_borders_lbl,max_wlen_stepsize = self.data_obj.wlen_details_lbl()
-            max_wlen_stepsize = data_obj.max_stepsize(self.data_obj.getCCSpectrum()[0])
-            
-            self.forwardmodel_lbl = ForwardModel(
-                 wlen_borders = wlen_borders_lbl,
-                 max_wlen_stepsize = max_wlen_stepsize,
-                 mode = 'lbl',
-                 line_opacities = self.config['ABUNDANCES'] + self.config['UNSEARCHED_ABUNDANCES'],
-                 model = self.model,
-                 max_RV = 2*max(abs(self.config['RVMIN']),self.config['RVMAX']),
-                 max_winlen = int(1.5*self.config['WIN_LEN'])
-                 )
-            self.forwardmodel_lbl.calc_rt_obj(lbl_sampling = self.config['LBL_SAMPLING'])
-            """
-        
         return
     
     def Prior(self,
@@ -335,7 +309,7 @@ class Retrieval:
         return log_L_RES,wlen_rebin,flux_rebin
     
     def calc_log_likelihood(self,params):
-        ab_metals = {}
+        chem_params = {}
         temp_params = {}
         clouds_params = {}
         if len(self.config['CLOUDS'])>0:
@@ -348,7 +322,7 @@ class Retrieval:
             if name in self.config['TEMPS']:
                 temp_params[name] = params[i]
             if name in self.config['ABUNDANCES']:
-                ab_metals[name] = params[i]
+                chem_params[name] = params[i]
             if name in self.config['CLOUDS']:
                 if name in self.config['CLOUDS_ABUNDS']:
                     clouds_params['cloud_abunds'][name] = params[i]
@@ -356,7 +330,7 @@ class Retrieval:
                     clouds_params[name] = params[i]
         for name in all_params:
             if name in self.config['UNSEARCHED_ABUNDANCES']:
-                ab_metals[name] = self.config['DATA_PARAMS'][name]
+                chem_params[name] = self.config['DATA_PARAMS'][name]
             if name in self.config['UNSEARCHED_TEMPS']:
                 temp_params[name] = self.config['DATA_PARAMS'][name]
             if name in self.config['UNSEARCHED_CLOUDS']:
@@ -365,7 +339,7 @@ class Retrieval:
                 else:
                     clouds_params[name] = self.config['DATA_PARAMS'][name]
         
-        if self.use_forecaster or self.use_prior == 'M':
+        if self.use_prior == 'M':
             temp_params['log_gravity'] = np.log10(cst.gravitational_constant) + np.log10(temp_params['M']) + np.log10(MASS_J) - 2*temp_params['log_R'] - 2*np.log10(RADIUS_J) + np.log10(gravity_cgs_si)
         
         if self.use_prior == 'R':
@@ -384,11 +358,11 @@ class Retrieval:
         
         """Metal abundances: check that their summed mass fraction is below 1."""
         metal_sum = 0.
-        for name in ab_metals.keys():
+        for name in chem_params.keys():
             if name in self.config['ABUNDANCES']:
-                log_prior += self.prior_obj.log_priors[name](ab_metals[name])
+                log_prior += self.prior_obj.log_priors[name](chem_params[name])
             if name != 'C/O' and name != 'FeHs':
-                metal_sum += 1e1**ab_metals[name]
+                metal_sum += 1e1**chem_params[name]
         
         if metal_sum > 1.:
             log_prior += -np.inf
@@ -428,10 +402,11 @@ class Retrieval:
         model_photometry = {}
         if self.forwardmodel_ck is not None:
             wlen_ck,flux_ck = self.forwardmodel_ck.calc_spectrum(
-                      ab_metals = ab_metals,
-                      temp_params = temp_params,
+                      chem_model_params = chem_params,
+                      temp_model_params = temp_params,
                       clouds_params = clouds_params,
-                      external_pt_profile = None)
+                      external_pt_profile = None,
+                      return_profiles = False)
             
             if sum(np.isnan(flux_ck))>0 or sum(np.isnan(wlen_ck))>0:
                 self.NaN_spectra += 1
@@ -465,10 +440,11 @@ class Retrieval:
             
             for interval_key in self.lbl_itvls.keys():
                 wlen_lbl,flux_lbl = self.forwardmodel_lbl[interval_key].calc_spectrum(
-                          ab_metals = ab_metals,
-                          temp_params = temp_params,
+                          chem_model_params = chem_params,
+                          temp_model_params = temp_params,
                           clouds_params = clouds_params,
-                          external_pt_profile = None)
+                          external_pt_profile = None,
+                          return_profiles = False)
                 
                 if sum(np.isnan(flux_lbl))>0 or sum(np.isnan(wlen_lbl))>0:
                     self.NaN_spectra += 1
@@ -536,7 +512,7 @@ class Retrieval:
                     for key in wlen_RES.keys():
                         plt.plot(wlen_RES[key],flux_RES[key])
                     plt.savefig(self.output_path+'model' + '/' + 'plot'+str(int(self.function_calls/self.config['PLOTTING_THRESHOLD']))+'.pdf')
-                    """
+                    
                     plot_data(
                             self.config,
                             CC_wlen = CC_data_wlen,
@@ -559,7 +535,7 @@ class Retrieval:
                             model_PHOT_flux = model_photometry,
                             output_file = self.output_path+'model',
                             plot_name = 'plot'+str(int(self.function_calls/self.config['PLOTTING_THRESHOLD'])))
-                    """
+                    
         if self.timing and self.plotting:
             t2 = time()
             print('Printing and plotting: ',t2-t1)

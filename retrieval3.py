@@ -32,10 +32,10 @@ import json
 
 # import all modules
 #from doubleRetrieval.util import *
-from doubleRetrieval.priors import Prior
-from doubleRetrieval.data2 import Data
-from doubleRetrieval.retrievalClass3 import Retrieval
-from doubleRetrieval.plotting import plot_corner,plot_SNR,plot_walkers,plot_retrieved_spectra_FM_dico
+from core.priors import Prior
+from core.data2 import Data
+from core.retrievalClass3 import Retrieval
+from core.plotting import plot_corner,plot_SNR,plot_walkers,plot_retrieved_spectra_FM_dico
 
 print('    DONE')
 
@@ -81,24 +81,6 @@ data_obj = Data(data_dir = None,
                 RES_err_dir=RES_ERR_FILE,
                 verbose=True)
 
-if USE_WEIGHTS:
-    data_obj.calculate_KDF_weights(0.05)
-    print('MODIFIED DATA OBJECT TO USE WEIGHTS ACCORDING TO DENSITY OF DATA POINTS')
-
-"""
-# Beta Pictoris b filepaths
-data_obj = Data(sim_data_dir = None,
-                 use_sim_files = None,
-                 CC_data_files = CC_DATA_FILE,
-                 PHOT_data_files = PHOT_DATA_FLUX_FILE,
-                 PHOT_filter_files = PHOT_DATA_FILTER_FILE,
-                 PHOT_sim_files = None,
-                 PHOT_sim_files_format = 2,
-                 RES_data_files = RES_DATA_FILE,
-                 RES_err_files = RES_ERR_FILE,
-                 RES_err_files_calc = False)
-"""
-
 # data_obj.plot(CONFIG_DICT,OUTPUT_DIR+'data',plot_errorbars=False,inset_plot=False)
 
 # Check that the retrieval does what I want it to do
@@ -115,18 +97,21 @@ print('Check passed')
 
 prior_obj = Prior(RANGE,LOG_PRIORS,CUBE_PRIORS)
 prior_obj.plot(CONFIG_DICT,OUTPUT_DIR)
-
-print(MODEL)
+print('FORWARD MODEL')
+print('Chemistry: %s, p-T: %s, clouds: %s' %(CHEM_MODEL,TEMP_MODEL,CLOUD_MODEL))
 retrieval = Retrieval(
-        data_obj,
-        prior_obj,
-        config = CONFIG_DICT,
-        model = MODEL, # free or chem_equ
-        retrieval_name = RETRIEVAL_NAME,
-        output_path = OUTPUT_DIR,
-        plotting=PLOTTING,
-        printing=PRINTING,
-        timing=TIMING)
+    data_obj,
+    prior_obj,
+    config=CONFIG_DICT,
+    chem_model=CHEM_MODEL, # or chem_equ
+    temp_model=TEMP_MODEL,
+    cloud_model=CLOUD_MODEL,
+    retrieval_name = RETRIEVAL_NAME,
+    output_path = OUTPUT_DIR,
+    plotting=PLOTTING,
+    printing=PRINTING,
+    timing=TIMING,
+    for_analysis=False)
 
 print('Starting Bayesian inference')
 if BAYESIAN_METHOD == 'pymultinest':

@@ -194,7 +194,6 @@ def get_temperatures(
     temperatures:np.array
         Array containing the temperature of each atmospheric layer.
     """
-    print(temp_model,temp_model_params)
     if temp_model == 'guillot':
         pressures,temperatures = guillot_temp_model(temp_model_params)
     else:

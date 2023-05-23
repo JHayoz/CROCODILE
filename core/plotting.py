@@ -902,7 +902,7 @@ def plot_retrieved_spectra_FM_dico(
     nb_positions = len(samples)
     med_par = np.median(samples,axis=0)
     
-    median_abunds,median_temps,median_clouds = fix_params(config,med_par)
+    median_chem_params,median_temp_params,median_clouds = fix_params(config,med_par)
     print(median_abunds,median_temps,median_clouds)
     
     if data_obj.RESinDATA():
@@ -915,13 +915,15 @@ def plot_retrieved_spectra_FM_dico(
     if retrieval.forwardmodel_ck is not None:
         
         wlen_ck,flux_ck = retrieval.forwardmodel_ck.calc_spectrum(
-                      ab_metals = median_abunds,
-                      temp_params = median_temps,
+                      chem_model_params = median_chem_params,
+                      temp_model_params = median_temp_params,
                       clouds_params = median_clouds,
-                      external_pt_profile = None)
+                      external_pt_profile = None,
+                      return_profiles = False)
+        
         if data_obj.PHOTinDATA():
             PHOT_data_flux,PHOT_data_err,filt,filt_func,PHOT_filter_midpoint,PHOT_filter_width = data_obj.getPhot()
-            photometry,wlen_temp,flux_temp = rebin_to_PHOT(wlen_ck,flux_ck,filt_func,median_temps['log_R'],config['DISTANCE'])
+            photometry,wlen_temp,flux_temp = rebin_to_PHOT(wlen_ck,flux_ck,filt_func,median_temp_params['log_R'],config['DISTANCE'])
             if saving:
                 save_photometry(photometry, data_obj.PHOT_data_err, data_obj.PHOT_filter_midpoint, data_obj.PHOT_filter_width, save_dir=output_result_dir+'photometry')
                 save_lines([wlen_ck,flux_ck],save_dir = output_result_dir+'ck_spectrum')
@@ -937,16 +939,17 @@ def plot_retrieved_spectra_FM_dico(
         wlen_lbl,flux_lbl={},{}
         for interval_key in retrieval.lbl_itvls.keys():
             wlen_lbl[interval_key],flux_lbl[interval_key] = retrieval.forwardmodel_lbl[interval_key].calc_spectrum(
-                      ab_metals = median_abunds,
-                      temp_params = median_temps,
+                      chem_model_params = median_chem_params,
+                      temp_model_params = median_temp_params,
                       clouds_params = median_clouds,
-                      external_pt_profile = None)
+                      external_pt_profile = None,
+                      return_profiles = False)
             if data_obj.CCinDATA():
                 for key in CC_wvl_data.keys():
                     if retrieval.CC_to_lbl_itvls[key] == interval_key:
                         wlen_CC[key],flux_CC[key],sgfilter[key],wlen_rebin,flux_rebin = rebin_to_CC(wlen_lbl[interval_key],flux_lbl[interval_key],CC_wvl_data[key],
                                                                              config['WIN_LEN'],filter_method = 'only_gaussian',
-                                                                             convert = config['CONVERT_SINFONI_UNITS'],log_R=median_temps['log_R'],distance=config['DISTANCE'])
+                                                                             convert = True,log_R=median_temp_params['log_R'],distance=config['DISTANCE'])
                 if saving:
                     save_spectra(wlen_CC,flux_CC,save_dir= output_result_dir + 'CC_spectrum',save_name='')
             

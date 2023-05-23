@@ -6,7 +6,7 @@ Created on Tue Jun 22 10:08:49 2021
 """
 
 from numpy import log10
-from doubleRetrieval.prior_functions import a_b_range,uniform_prior,gaussian_prior,log_gauss
+from core.prior_functions import a_b_range,uniform_prior,gaussian_prior,log_gauss
 
 # Define where to store results of retrieval
 
@@ -20,10 +20,8 @@ NUMBER = ''
 RETRIEVAL_NAME_INPUT = 'My_spectrum_v01'
 VERSION = '01'
 #DATA_TYPE = 'LRSP'
-#DATA_TYPE = 'CROC'
-DATA_TYPE = 'CC'
-if MODEL == 'free':
-    VERSION += '_free'
+DATA_TYPE = 'CROC'
+#DATA_TYPE = 'CC'
 RETRIEVAL_NAME = RETRIEVAL_NAME_INPUT +'_'+ VERSION + '_' + DATA_TYPE
 
 # configure the paths of the input and output files
@@ -34,7 +32,7 @@ OUTPUT_DIR += 'jhayoz/RunningJobs/' + RETRIEVAL_NAME + '/'
 
 
 IPAGATE_ROUTE = '/home/ipa/quanz/user_accounts/jhayoz/Projects/'
-INPUT_DIR = IPAGATE_ROUTE + 'MT_paper/PAPER_RETRIEVALS/REFEREE_NEW_ANALYSIS/' + RETRIEVAL_NAME_INPUT
+INPUT_DIR = IPAGATE_ROUTE + 'Quick_spectra/' + RETRIEVAL_NAME_INPUT
 
 SIM_DATA_DIR = INPUT_DIR
 CC_DATA_FILE = INPUT_DIR+'/CC_spectrum'
@@ -63,27 +61,22 @@ RETRIEVAL_NOTES = [
     'Testing CROCODILE'
                    ]
 
-
-
-
-
 # Define configuration
 MODE = 'lbl'
 LBL_SAMPLING = 10
 
 USE_PRIOR = None
-USE_COV = False
+USE_COV = True
 WINDOW_LENGTH_lbl = 20 # ERIS SPIFFIER
 WINDOW_LENGTH_ck = 41
 
-
 # Hyperparameters of retrieval
+BAYESIAN_METHOD = 'pymultinest' # pymultinest, ultranest or mcmc
+N_LIVE_POINTS = 800
+# parameters of crosscorrRV
 RVMIN = -400. # 400
 RVMAX = 400.
 DRV = 0.5
-BAYESIAN_METHOD = 'pymultinest' # pymultinest, ultranest or mcmc
-#pymultinest
-N_LIVE_POINTS = 800
 
 # diagnostic parameters
 WRITE_THRESHOLD = 50
@@ -96,7 +89,7 @@ PLOTTING_THRESHOLD = 10
 # Define forward model
 
 # Chemical model
-CHEM_MODEL = 'chem_equ' # 'free' or 'chem_equ'
+CHEM_MODEL = 'free' # 'free' or 'chem_equ'
 #ABUNDANCES = ['H2O_main_iso','CO_main_iso','CH4_main_iso']
 if CHEM_MODEL == 'free':
     #ABUNDANCES = ['H2O_main_iso','CH4_main_iso', 'CO_main_iso', 'CO2_main_iso','H2S_main_iso','FeH_main_iso','TiO_all_iso','K','VO']
@@ -109,7 +102,7 @@ UNSEARCHED_ABUNDS = []
 # P-T model
 TEMP_MODEL = 'guillot'
 ALL_TEMPS = ['log_gamma','t_int','t_equ','log_gravity','log_kappa_IR','R','P0']
-TEMP_PARAMS = ['t_equ','log_gravity'#,'R'
+TEMP_PARAMS = ['t_equ','log_gravity','R'
                ]#Pick from ALL_TEMPS, and order is relevant: must be like in ALL_TEMPS
 UNSEARCHED_TEMPS = [item for item in ALL_TEMPS if not(item in TEMP_PARAMS)]
 
@@ -292,7 +285,6 @@ CONFIG_DICT['DRV'] = DRV
 CONFIG_DICT['DISTANCE'] = DISTANCE
 CONFIG_DICT['WIN_LEN'] = WINDOW_LENGTH_lbl
 CONFIG_DICT['LBL_SAMPLING'] = LBL_SAMPLING
-CONFIG_DICT['CONVERT_SINFONI_UNITS'] = CONVERT_SINFONI_UNITS
 CONFIG_DICT['WRITE_THRESHOLD'] = WRITE_THRESHOLD
 CONFIG_DICT['PLOTTING_THRESHOLD'] = PLOTTING_THRESHOLD
 CONFIG_DICT['DATA_PARAMS'] = DATA_PARAMS
