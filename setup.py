@@ -1,7 +1,5 @@
 import setuptools
 
-#Let us store all the info inside the readme file in the
-#long description variable. This description will be shown in test.pypi webiste
 with open("README.md",'r') as fh:
     long_description=fh.read()
 
@@ -15,6 +13,6 @@ setuptools.setup(
     long_description = long_description,
     long_description_content_type='text/markdown',
     url='git@github.com:JHayoz/CROCODILE',
-    install_requires=['numpy','matplotlib'],
+    install_requires=['numpy','matplotlib','astropy','spectres','corner','jupyter','notebook','scipy','tqdm','progressbar','pandas','numba','seaborn','mendeleev','sklearn','mpi4py','PyAstronomy'],
     classifiers=['Programming Language :: Python :: 3'],
 )
