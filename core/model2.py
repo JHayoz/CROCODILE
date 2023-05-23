@@ -174,8 +174,8 @@ def get_abundances(
     return pressures,abundances
     
 def get_temperatures(
-        temp_model:str,
-        temp_model_params:dict
+        temp_model:str='guillot',
+        temp_model_params:dict={}
     ):
     """
     Calculates the p-T profile from the model and parameters given.
@@ -194,6 +194,7 @@ def get_temperatures(
     temperatures:np.array
         Array containing the temperature of each atmospheric layer.
     """
+    print(temp_model,temp_model_params)
     if temp_model == 'guillot':
         pressures,temperatures = guillot_temp_model(temp_model_params)
     else:

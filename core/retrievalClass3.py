@@ -13,16 +13,19 @@ from os import path
 #sys.path.append("/home/ipa/quanz/shared/petitRADTRANS/")
 from petitRADTRANS import radtrans as rt
 from petitRADTRANS import nat_cst as nc
+from petitRADTRANS import physics
 import numpy as np
+
+from scipy.interpolate import interp1d
 
 import matplotlib.pyplot as plt
 
 from time import time
 from PyAstronomy.pyasl import crosscorrRV
 
-from core.util import *
-from core.rebin import *
-from core.plotting import *
+from core.util import convert_units
+from core.rebin import rebin_to_RES,rebin_to_CC,rebin_to_PHOT,doppler_shift
+#from doubleRetrieval.plotting import *
 from core.forward_model import ForwardModel
 from core.rotbroad_utils import trim_spectrum
 
@@ -37,7 +40,9 @@ class Retrieval:
                  data_obj,
                  prior_obj,
                  config,
-                 model='free', # or chem_equ
+                 chem_model='free', # or chem_equ
+                 temp_model='guillot',
+                 cloud_model=None,
                  retrieval_name = '',
                  output_path = '',
                  plotting=False,
@@ -48,9 +53,13 @@ class Retrieval:
         self.data_obj = data_obj
         self.prior_obj = prior_obj
         self.config = config.copy() # dictionary, with keys from the config file
-        self.model = model
-        self.use_forecaster = config['USE_FORECASTER']
+        # Define forward model used
+        self.chem_model = chem_model
+        self.temp_model = temp_model
+        self.cloud_model = cloud_model
+        
         self.use_prior = config['USE_PRIOR']
+        self.use_cov = config['USE_COV']
         self.retrieval_name = retrieval_name
         self.output_path = output_path
         self.plotting = plotting
@@ -91,11 +100,16 @@ class Retrieval:
         
         self.forwardmodel_lbl = None
         self.forwardmodel_ck = None
+        if not 'CLOUD_MODEL' in self.config.keys():
+            print('NO CLOUD MODEL')
+            self.config['CLOUD_MODEL']=None
+            self.config['CLOUDS_OPACITIES']={}
+            self.config['DO_SCAT_CLOUDS']=False
+        else:
+            print(self.config['CLOUD_MODEL'])
+            print(self.config['CLOUDS_OPACITIES'])
         
-        print(self.config['CLOUD_MODEL'])
-        print(self.config['CLOUDS_OPACITIES'])
-        
-        if self.data_obj.PHOTinDATA():
+        if self.data_obj.ck_FM_interval is not None:
             print('CALLING FORWARD MODEL WITH C-K MODE')
             wlen_borders_ck = self.data_obj.ck_FM_interval
             
@@ -104,19 +118,40 @@ class Retrieval:
                  max_wlen_stepsize = wlen_borders_ck[1]/1000,
                  mode = 'c-k',
                  line_opacities = self.config['ABUNDANCES'] + self.config['UNSEARCHED_ABUNDANCES'],
-                 model = self.model,
-                 clouds = self.config['CLOUD_MODEL'],
-                 cloud_species = self.config['CLOUDS_OPACITIES'].copy(),
+                 cont_opacities= ['H2-H2','H2-He'],
+                 rayleigh_scat = ['H2','He'],
+        cloud_model = self.config['CLOUD_MODEL'],
+        cloud_species = self.config['CLOUDS_OPACITIES'].copy(),
                  do_scat_emis = self.config['DO_SCAT_CLOUDS'],
+        chem_model = CHEM_MODEL,
+        temp_model = TEMP_MODEL,
                  max_RV = 0,
                  max_winlen = 0
+        include_H2 = True,
+        only_include = 'all'
                  )
             self.forwardmodel_ck.calc_rt_obj(lbl_sampling = None)
+            
+            forwardmodel_lbl = ForwardModel(wlen_borders=wlen_borders_lbl,
+        max_wlen_stepsize=max_wlen_stepsize,
+        mode='lbl',
+        line_opacities=ABUNDANCES,
+        cont_opacities= ['H2-H2','H2-He'],
+        rayleigh_scat = ['H2','He'],
+        cloud_model = clouds,
+        cloud_species = cloud_species.copy(),
+        do_scat_emis = do_scat_emis,
+        chem_model = CHEM_MODEL,
+        temp_model = TEMP_MODEL,
+        max_RV = RV,
+        max_winlen = WINDOW_LENGTH_LBL,
+        include_H2 = True,
+        only_include = 'all')
         
         print(self.config['CLOUD_MODEL'])
         print(self.config['CLOUDS_OPACITIES'])
         
-        if self.data_obj.CCinDATA() or self.data_obj.RESinDATA():
+        if self.data_obj.CCinDATA() or (self.data_obj.RESinDATA() and 'lbl' in [self.data_obj.RES_data_info[key][0] for key in self.data_obj.RES_data_info.keys()]):
             print('CALLING FORWARD MODEL WITH LBL MODE')
             self.forwardmodel_lbl = {}
             
@@ -275,11 +310,16 @@ class Retrieval:
         
         return log_L_PHOT,model_photometry,wlen_rebin,flux_rebin
     
-    def calc_log_L_RES(self,wlen,flux,temp_params,wlen_data,flux_data,flux_err,inverse_cov,flux_data_std,use_cov = True):
+    def calc_log_L_RES(self,wlen,flux,temp_params,wlen_data,flux_data,flux_err,inverse_cov,flux_data_std,use_cov = True,mode='lbl'):
         
         log_L_RES = 0
-        
-        wlen_rebin,flux_rebin = rebin_to_RES(wlen,flux,wlen_data,log_R = temp_params['log_R'],distance = self.config['DISTANCE'])
+        if mode == 'lbl' or max(wlen_data[1:]/(wlen_data[1:]-wlen_data[:-1])) < 950:
+            wlen_rebin,flux_rebin = rebin_to_RES(wlen,flux,wlen_data,log_R = temp_params['log_R'],distance = self.config['DISTANCE'])
+        else:
+            # very edge case if I need to rebin a 1000 res spectrum into 980 res spectrum
+            wlen_convert,flux_convert = convert_units(wlen,flux, log_radius=temp_params['log_R'], distance = self.config['DISTANCE'])
+            flux_interped = interp1d(wlen_convert,flux_convert)
+            wlen_rebin,flux_rebin = wlen_data.copy(),flux_interped(wlen_data)
         
         if sum(np.isnan(flux_rebin))>0:
             self.NaN_spectRES += 1
@@ -412,7 +452,7 @@ class Retrieval:
                             wlen_ck,
                             flux_ck,
                             temp_params,
-                            RES_data_wlen[instr],RES_data_flux[instr],flux_err[instr],inverse_cov[instr],flux_data_std[instr],use_cov = False)
+                            RES_data_wlen[instr],RES_data_flux[instr],flux_err[instr],inverse_cov[instr],flux_data_std[instr],use_cov = False,mode='c-k')
                         log_L_RES += log_L_RES_temp
         
         if self.data_obj.CCinDATA():
@@ -455,7 +495,7 @@ class Retrieval:
                                     wlen_lbl,
                                     flux_lbl,
                                     temp_params,
-                                    RES_data_wlen[instr],RES_data_flux[instr],flux_err[instr],inverse_cov[instr],flux_data_std[instr],use_cov = False)
+                                    RES_data_wlen[instr],RES_data_flux[instr],flux_err[instr],inverse_cov[instr],flux_data_std[instr],use_cov = self.use_cov,mode='lbl')
                                 log_L_RES += log_L_RES_temp
         
         if self.timing:

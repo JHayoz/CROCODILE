@@ -5,10 +5,10 @@ Created on Mon Jan 25 09:40:17 2021
 @author: jeanh
 """
 
-# help functions to plot the results of the retrieval
+# help functions to plot simulated spectra or the results of the retrieval
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid.inset_locator import (inset_axes, InsetPosition,mark_inset)
+#from mpl_toolkits.axes_grid.inset_locator import (inset_axes, InsetPosition,mark_inset)
 from corner import corner
 import numpy as np
 from scipy.ndimage import gaussian_filter
@@ -24,6 +24,7 @@ from core.model2 import *
 from core.rebin import *
 from core.plot_errorbars_abundances import Errorbars_plot,Posterior_Classification_Errorbars
 
+from petitRADTRANS import physics
 
 def plot_data(config,
               CC_wlen = None,
@@ -121,6 +122,7 @@ def plot_data(config,
         if isinstance(RES_flux_err,dict):
             YERR = {}
             for key in RES_flux_err.keys():
+                print('RES flux shape:',key,np.shape(RES_flux_err[key]))
                 if len(np.shape(RES_flux_err[key])) >= 2:
                     # if it's a covariance matrix
                     YERR[key] = [np.sqrt(RES_flux_err[key][i][i]) for i in range(len(RES_flux_err[key]))]
@@ -145,6 +147,12 @@ def plot_data(config,
         """RESIDUALS DATA"""
         if RES_flux_err is not None and plot_errorbars:
             print('Plot data')
+            if isinstance(RES_flux_err,dict):
+                print(RES_wlen.keys(),RES_flux.keys(),YERR.keys())
+                for key in RES_wlen.keys():
+                    print(key, np.shape(RES_wlen[key]),np.shape(RES_flux[key]),np.shape(YERR[key]))
+            else:
+                print(np.shape(RES_wlen),np.shape(RES_flux),np.shape(YERR))
             ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,fmt='|',color='b',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
         
         if RES_wlen is not None:
@@ -178,22 +186,13 @@ def plot_data(config,
             ax.set_ylabel(flux_label,fontsize=fontsize)
             ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
             ax.set_xlim((x_min-0.2,x_max+0.2))
-            plot_i += 2 # was 2
+            plot_i += 1 # was 2
     
     
     if RES_wlen is not None:
         
-        if inset_plot:
-            """SECOND PLOT"""
-            """NOW INSET IN FIRST PLOT"""
-            #if (PHOT_flux is not None) or (CC_flux is not None):
-            ax2 = plt.axes([2.8,9,1,1])
-            ip = InsetPosition(ax2, [0.45,0.45,0.54,0.49])
-            ax2.set_axes_locator(ip)
-            mark_inset(ax, ax2, loc1=2, loc2=2, fc="none", ec='0')
-        else:
-            ax2 = plt.subplot(nb_plots,1,(plot_i,plot_i+1))
-            plot_i += 1
+        ax2 = plt.subplot(nb_plots,1,(plot_i,plot_i+1))
+        plot_i += 1
         
         #ax = plt.subplot(nb_plots,1,(plot_i,plot_i+1))
         print('new plot',plot_i)
@@ -481,13 +480,17 @@ def plot_corner(config,
                 fontsize=12,
                 include_abunds = True,
                 title = 'Retrieval',
-                plot_format = 'png'):
+                plot_format = 'png',
+                save_plot=True):
     
     if plot_format not in ['eps', 'jpeg', 'jpg', 'pdf', 'pgf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz', 'tif', 'tiff']:
         plot_format = 'png'
     
     params_names = config['PARAMS_NAMES']
-    abundances_names = config['ABUNDANCES']
+    if 'ABUNDANCES' in config.keys():
+        abundances_names = config['ABUNDANCES']
+    else:
+        abundances_names=[]
     
     nb_iter = len(samples)
     index_consider = int(nb_iter*(1.-percent_considered))
@@ -502,7 +505,7 @@ def plot_corner(config,
     corner_range=None
     if param_range is not None:
         corner_range=list([(param_range[param][0],param_range[param][1]) if param in config['TEMPS'] + config['UNSEARCHED_TEMPS'] + config['CLOUDS'] else (param_range['abundances'][0],param_range['abundances'][1]) for param in params_names])
-    fig = corner(samples_cut, quantiles = [0.16, 0.5, 0.84],show_titles=True,title_kwargs={"fontsize":fontsize},verbose=True,labels=[nice_param_name(param,config) for param in params_names],bins=20,range=corner_range)
+    fig = corner(samples_cut, quantiles = [(1-0.6827)/2,0.5,1-(1-0.6827)/2],show_titles=True,title_kwargs={"fontsize":fontsize},verbose=True,labels=[nice_param_name(param,config) for param in params_names],bins=20,range=corner_range)
     if title is not None:
         fig.suptitle(title,fontsize=12)
     
@@ -523,10 +526,13 @@ def plot_corner(config,
                 ax.axvline(config['DATA_PARAMS'][params_names[xi]],color='r')
             if params_names[yi] in config['DATA_PARAMS'].keys():
                 ax.axhline(config['DATA_PARAMS'][params_names[yi]],color='r')
-    if include_abunds:
-        fig.savefig(output_file+'full_cornerplot.' + plot_format,dpi=300)
+    if save_plot:
+        if include_abunds:
+            fig.savefig(output_file+'full_cornerplot.' + plot_format,dpi=300)
+        else:
+            fig.savefig(output_file+'partial_cornerplot.' + plot_format,dpi=300)
     else:
-        fig.savefig(output_file+'partial_cornerplot.' + plot_format,dpi=300)
+        plt.show()
 
 def plot_mol_abunds(config,
                     samples,
@@ -541,7 +547,7 @@ def plot_mol_abunds(config,
     ab_metals,temps_params,clouds_params = fix_params(config, median_params)
     
     pressures = np.logspace(-6, temps_params['P0'], 100)
-    temperatures = nc.guillot_global(pressures, 1e1**temps_params['log_kappa_IR'], 1e1**temps_params['log_gamma'], 1e1**temps_params['log_gravity'], temps_params['t_int'], temps_params['t_equ'])
+    temperatures = physics.guillot_global(pressures, 1e1**temps_params['log_kappa_IR'], 1e1**temps_params['log_gamma'], 1e1**temps_params['log_gravity'], temps_params['t_int'], temps_params['t_equ'])
     
     # results from retrieval
     
@@ -652,7 +658,7 @@ def plot_temperature(config,
                      output_file):
     nb_positions = len(samples)
     data_pressures = np.logspace(-6, config['DATA_PARAMS']['P0'], 100)
-    temperature_data = nc.guillot_global(data_pressures, 1e1**config['DATA_PARAMS']['log_kappa_IR'], 1e1**config['DATA_PARAMS']['log_gamma'], 1e1**config['DATA_PARAMS']['log_gravity'], config['DATA_PARAMS']['t_int'], config['DATA_PARAMS']['t_equ'])
+    temperature_data = physics.guillot_global(data_pressures, 1e1**config['DATA_PARAMS']['log_kappa_IR'], 1e1**config['DATA_PARAMS']['log_gamma'], 1e1**config['DATA_PARAMS']['log_gravity'], config['DATA_PARAMS']['t_int'], config['DATA_PARAMS']['t_equ'])
     nb_temperature_curves = min([len(samples),1000])/10
     to_pick_from = 0.5
     pick_sample_from = int(nb_positions*(1.-to_pick_from))
@@ -665,7 +671,7 @@ def plot_temperature(config,
                 temp_param[name] = param[config['PARAMS_NAMES'].index(name)]
             else:
                 temp_param[name] = config['DATA_PARAMS'][name]
-        temperature_curves[i] = nc.guillot_global(data_pressures, 1e1**temp_param['log_kappa_IR'], 1e1**temp_param['log_gamma'], 1e1**temp_param['log_gravity'], temp_param['t_int'], temp_param['t_equ'])
+        temperature_curves[i] = physics.guillot_global(data_pressures, 1e1**temp_param['log_kappa_IR'], 1e1**temp_param['log_gamma'], 1e1**temp_param['log_gravity'], temp_param['t_int'], temp_param['t_equ'])
     temp_curves = np.array([temperature_curves[i] for i in range(len(considered_positions))])
     quantile_curves = np.quantile(temp_curves,[(1-0.6827)/2,0.5,1-(1-0.6827)/2],axis=0)
     quantile_curves_smooth = {}
@@ -678,7 +684,7 @@ def plot_temperature(config,
             median_param[name] = params_median[config['PARAMS_NAMES'].index(name)]
         else:
             median_param[name] = config['DATA_PARAMS'][name]
-    median_curve = nc.guillot_global(data_pressures, 1e1**median_param['log_kappa_IR'], 1e1**median_param['log_gamma'], 1e1**median_param['log_gravity'], median_param['t_int'], median_param['t_equ'])
+    median_curve = physics.guillot_global(data_pressures, 1e1**median_param['log_kappa_IR'], 1e1**median_param['log_gamma'], 1e1**median_param['log_gravity'], median_param['t_int'], median_param['t_equ'])
     fig=plt.figure()
     if True:
         plt.plot(temperature_data,data_pressures,'k',linewidth=0.3,label='True')
@@ -915,14 +921,16 @@ def plot_retrieved_spectra_FM_dico(
                       external_pt_profile = None)
         if data_obj.PHOTinDATA():
             PHOT_data_flux,PHOT_data_err,filt,filt_func,PHOT_filter_midpoint,PHOT_filter_width = data_obj.getPhot()
-            photometry,wlen_ck,flux_ck = rebin_to_PHOT(wlen_ck,flux_ck,filt_func,median_temps['log_R'],config['DISTANCE'])
+            photometry,wlen_temp,flux_temp = rebin_to_PHOT(wlen_ck,flux_ck,filt_func,median_temps['log_R'],config['DISTANCE'])
             if saving:
-                save_photometry(photometry,data_obj.PHOT_data_err,data_obj.PHOT_filter_midpoint,data_obj.PHOT_filter_width,save_dir=output_result_dir+'photometry')
+                save_photometry(photometry, data_obj.PHOT_data_err, data_obj.PHOT_filter_midpoint, data_obj.PHOT_filter_width, save_dir=output_result_dir+'photometry')
                 save_lines([wlen_ck,flux_ck],save_dir = output_result_dir+'ck_spectrum')
         
         if data_obj.RES_data_with_ck:
             for key in RES_wvl_data.keys():
                 if data_obj.RES_data_info[key][0] == 'c-k':
+                    print(RES_wvl_data[key])
+                    print(wlen_ck)
                     wlen_RES[key],flux_RES[key] = rebin_to_RES(wlen_ck,flux_ck,RES_wvl_data[key],median_temps['log_R'],config['DISTANCE'])
     
     if retrieval.forwardmodel_lbl is not None:
@@ -1237,7 +1245,7 @@ def plot_retrieved_temperature_profile(
             if param in temp_params_names:
                 temp_params[param] = position[param_i]
         
-        temp_curves[pos_i] = nc.guillot_global(
+        temp_curves[pos_i] = physics.guillot_global(
                 pressures,
                 1e1**temp_params['log_kappa_IR'],
                 1e1**temp_params['log_gamma'],
@@ -1254,7 +1262,7 @@ def plot_retrieved_temperature_profile(
     quantile_curves = np.quantile(temp_curves,q=quantiles,axis = 0)
     
     data_pressures = np.logspace(-6,data_params['P0'],100)
-    data_temperatures = nc.guillot_global(data_pressures,
+    data_temperatures = physics.guillot_global(data_pressures,
                 1e1**data_params['log_kappa_IR'],
                 1e1**data_params['log_gamma'],
                 1e1**data_params['log_gravity'],
@@ -1419,7 +1427,7 @@ def plot_retrieved_abunds(
     
     
     pressures = np.logspace(-6, data_params['P0'], 100)
-    temperatures = nc.guillot_global(
+    temperatures = physics.guillot_global(
                 pressures,
                 1e1**data_params['log_kappa_IR'],
                 1e1**data_params['log_gamma'],

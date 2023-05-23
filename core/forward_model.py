@@ -233,6 +233,8 @@ class ForwardModel:
         if external_pt_profile is not None:
             pressures,temperatures = external_pt_profile
         else:
+            print(self.temp_model)
+            print(temp_model_params)
             pressures,temperatures=get_temperatures(temp_model=self.temp_model,temp_model_params=temp_model_params)
         
         # setup up opacity structure if not yet done so

@@ -8,14 +8,16 @@ Created on Mon Jun 21 15:32:01 2021
 
 # import all relevant Python libraries
 print('IMPORTING LIBRARIES')
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+from config3 import *
+print('    CONFIG READ')
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import numpy as np
 import random
 import sys
-import os
-os.environ['OMP_NUM_THREADS'] = '1'
+import numpy as np
 #os.environ["pRT_input_data_path"] = "/scratch/software/petitRADTRANS/petitRADTRANS/input_data"
 os.environ["pRT_input_data_path"] = "/home/ipa/quanz/shared/petitRADTRANS/input_data"
 
@@ -23,18 +25,17 @@ from os import path
 #sys.path.append("/scratch/software/petitRADTRANS/")
 #sys.path.append("/home/ipa/quanz/shared/petitRADTRANS/")
 from petitRADTRANS import Radtrans
-from petitRADTRANS import nat_cst as nc
+#from petitRADTRANS import nat_cst as nc
 import pickle
 import json
-import scipy.stats, scipy
+#import scipy.stats, scipy
 
 # import all modules
-from doubleRetrieval.util import *
+#from doubleRetrieval.util import *
 from doubleRetrieval.priors import Prior
 from doubleRetrieval.data2 import Data
 from doubleRetrieval.retrievalClass3 import Retrieval
-from doubleRetrieval.plotting import *
-from config3 import *
+from doubleRetrieval.plotting import plot_corner,plot_SNR,plot_walkers,plot_retrieved_spectra_FM_dico
 
 print('    DONE')
 
@@ -77,7 +78,8 @@ data_obj = Data(data_dir = None,
                 PHOT_flux_dir = PHOT_DATA_FLUX_FILE,
                 CC_data_dir=CC_DATA_FILE,
                 RES_data_dir=RES_DATA_FILE,
-                RES_err_dir=RES_ERR_FILE)
+                RES_err_dir=RES_ERR_FILE,
+                verbose=True)
 
 if USE_WEIGHTS:
     data_obj.calculate_KDF_weights(0.05)
@@ -97,7 +99,7 @@ data_obj = Data(sim_data_dir = None,
                  RES_err_files_calc = False)
 """
 
-data_obj.plot(CONFIG_DICT,OUTPUT_DIR+'data',plot_errorbars=False)
+# data_obj.plot(CONFIG_DICT,OUTPUT_DIR+'data',plot_errorbars=False,inset_plot=False)
 
 # Check that the retrieval does what I want it to do
 if 'CC' in USE_SIM_DATA:

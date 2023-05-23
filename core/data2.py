@@ -12,7 +12,6 @@ from numpy.linalg import inv
 import os
 from .plotting import plot_data
 from itertools import combinations
-from sklearn.neighbors import KernelDensity
 
 class Data:
     def __init__(self,
@@ -170,13 +169,6 @@ class Data:
                     self.RES_inv_cov[spectrum_name] = inv(temp_err[spectrum_name])
                     self.RES_data_flux_err[spectrum_name] = np.array([np.sqrt(self.RES_cov_err[spectrum_name][i][i]) for i in range(len(self.RES_cov_err[spectrum_name]))])
                 assert(np.sum(self.RES_cov_err[spectrum_name]==np.inf)+np.sum(self.RES_inv_cov[spectrum_name]==np.inf)+np.sum(np.isnan(self.RES_cov_err[spectrum_name]))+np.sum(np.isnan(self.RES_inv_cov[spectrum_name])) == 0)
-                # enough to test for NaNs in the covariance matrix, and useless to counts zeros in covariance matrix because there will be zeros in a diagonal covariance matrix
-                #print('nb zeros',spectrum_name,np.sum(self.RES_cov_err[spectrum_name]==0),np.sum(self.RES_inv_cov[spectrum_name]==0))
-                #if np.sum(self.RES_cov_err[spectrum_name]==0)+np.sum(self.RES_inv_cov[spectrum_name]==0)+np.sum(np.isnan(self.RES_cov_err[spectrum_name]))+np.sum(np.isnan(self.RES_inv_cov[spectrum_name])) != 0:
-                #    print(np.sum(self.RES_cov_err[spectrum_name]==0),np.sum(self.RES_inv_cov[spectrum_name]==0),np.sum(np.isnan(self.RES_cov_err[spectrum_name])),np.sum(np.isnan(self.RES_inv_cov[spectrum_name])))
-                #    print(self.RES_cov_err[spectrum_name])
-                #    print(self.RES_inv_cov[spectrum_name])
-                #assert(np.sum(self.RES_cov_err[spectrum_name]==0)+np.sum(self.RES_inv_cov[spectrum_name]==0)+np.sum(np.isnan(self.RES_cov_err[spectrum_name]))+np.sum(np.isnan(self.RES_inv_cov[spectrum_name])) == 0)
                 
         
         return
@@ -285,7 +277,7 @@ class Data:
         if self.RESinDATA():
             for instr in self.RES_data_wlen.keys():
                 max_resolution = max(self.RES_data_wlen[instr][1:]/(self.RES_data_wlen[instr][1:] - self.RES_data_wlen[instr][:-1]))
-                if max_resolution < 900:
+                if max_resolution < 1001:
                     self.RES_data_info[instr] = ['c-k',[self.RES_data_wlen[instr][0],self.RES_data_wlen[instr][-1]],max(self.RES_data_wlen[instr][1:] - self.RES_data_wlen[instr][:-1])]
                     self.RES_data_with_ck = True
                 else:
@@ -345,64 +337,6 @@ class Data:
                             self.disjoint_lbl_intervals_max_stepsize[interval_i] = max(self.disjoint_lbl_intervals_max_stepsize[interval_i],self.RES_data_info[key][2])
                             break
     
-    def calculate_KDF_weights(self,h,plot_weights=True,output_dir=''):
-        # fix dic keys to avoid mix up in case keys are not always output the same way
-        RES_keys = list(self.RES_data_wlen.keys())
-        #CC_keys = list(self.CC_data_wlen.keys())
-        PHOT_keys = list(self.PHOT_filter_midpoint.keys())
-        # stack data on top of each other, sorting according to wavelength doesn't matter
-        data_put_together = np.hstack([[self.RES_data_wlen[key],self.RES_data_flux[key]] for key in RES_keys])
-        data_put_together = np.hstack([data_put_together,np.transpose([[self.PHOT_filter_midpoint[key],self.PHOT_data_flux[key]] for key in PHOT_keys])])
-        
-        data = data_put_together[0][:,np.newaxis]
-        
-        kde = KernelDensity(kernel='gaussian', bandwidth=h).fit(data)
-        weights = np.exp(kde.score_samples(data))
-        
-        new_err_RES = {}
-        new_cov_RES = {}
-        new_cov_inv_RES = {}
-        new_err_PHOT = {}
-        
-        for key_i,key in enumerate(RES_keys):
-            if key_i == 0:
-                pos = 0
-            else:
-                pos = sum([len(self.RES_data_wlen[subkey]) for subkey in RES_keys[:key_i-1]])
-            weights_instr = weights[pos:pos+len(self.RES_data_wlen[key])]
-            new_cov_RES[key] = np.dot(np.transpose(np.diag(weights_instr)),np.dot(self.RES_cov_err[key],np.diag(weights_instr)))
-            new_cov_inv_RES[key] = inv(new_cov_RES[key])
-            new_err_RES[key] = np.array([np.sqrt(new_cov_RES[key][i,i]) for i in range(len(new_cov_RES[key]))])
-            
-            self.RES_cov_err[key] = new_cov_RES[key]
-            self.RES_inv_cov[key] = new_cov_inv_RES[key]
-            self.RES_data_flux_err[key] = new_err_RES[key]
-        
-        len_RES_data = sum([len(self.RES_data_wlen[subkey]) for subkey in RES_keys])
-        
-        for instr_i,instr in enumerate(PHOT_keys):
-            pos = len_RES_data+instr_i
-            weight_instr = weights[pos]
-            new_err_PHOT[instr] = weight_instr*self.PHOT_data_err[instr]
-            
-            self.PHOT_data_err[instr] = new_err_PHOT[instr]
-        
-        if plot_weights:
-            x_plot = np.linspace(np.min(data),np.max(data),2000)[:, np.newaxis]
-            
-            log_likelihood = kde.score_samples(x_plot)
-            plt.figure(figsize=(16,8))
-            plt.subplot(2,1,1)
-            
-            plt.plot(data_put_together[0],data_put_together[1],'k.')
-            plt.ylabel('Flux')
-            plt.subplot(2,1,2)
-            plt.plot(x_plot[:,0],np.exp(log_likelihood),'b')
-            plt.xlabel('Wavelength [$\mu$m]')
-            plt.ylabel('Kernel density')
-            plt.savefig(output_dir + 'kernel_density.png',dpi=300)
-        
-        return
     
     def plot(self,config,
              output_dir='',

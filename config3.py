@@ -5,102 +5,51 @@ Created on Tue Jun 22 10:08:49 2021
 @author: jeanh
 """
 
-import numpy as np
-from doubleRetrieval.util import a_b_range,uniform_prior,gaussian_prior,log_gauss,poor_mans_abunds_lbl,poor_mans_abunds_ck,open_spectrum
+from numpy import log10
+from doubleRetrieval.prior_functions import a_b_range,uniform_prior,gaussian_prior,log_gauss
 
-# method used in this retrieval
-# method and mode should be determined from data chosen
+# Define where to store results of retrieval
 
 #MACHINE = 'rainbow'
 MACHINE = 'sunray'
 #MACHINE = 'bluesky'
 #MACHINE = 'guenther38'
 
-MODE = 'lbl'
-LBL_SAMPLING = 10
-
-USE_FORECASTER = False
-
-USE_PRIOR = None
-
-CONVERT_SINFONI_UNITS = True
-
-USE_CHEM_DISEQU = False
-
-MODEL = 'free' # 'free' or 'chem_equ'
-CLOUD_MODEL = None # None or 'grey_cloud' or 'ackermann'
-
-WINDOW_LENGTH_lbl = 101
-WINDOW_LENGTH_lbl = 64 # now referring to the length of the window for the median filter
-WINDOW_LENGTH_lbl = 600 # now referring to the length of the window for the median filter, too slow
-WINDOW_LENGTH_lbl = 300 # now referring to the length of the window for the only gaussian filter
-WINDOW_LENGTH_lbl = 60 # now referring to the length of the window for the only gaussian filter
-WINDOW_LENGTH_lbl = 1 # now referring to the length of the window for the only gaussian filter
-
-#WINDOW_LENGTH_lbl = 20 # now referring to the length of the window for the only gaussian filter
-WINDOW_LENGTH_ck = 41
-RVMIN = -400. # 400
-RVMAX = 400.
-DRV = 0.5
-
-BAYESIAN_METHOD = 'pymultinest' # pymultinest, ultranest or mcmc
-
-#pymultinest
-N_LIVE_POINTS = 800
-
-
-#ULTRANEST
-ULTRANEST_JOBS = 10
-
-
-#BAYESIAN_METHOD = 'mcmc' # doesn't work with object-oriented programming because the method (calc log-likelihood in retrievalClass) can't be pickled and therefore passed between processes, but now it works
-N_WALKERS = 20
-STEPSIZE = 1.75
-N_THREADS = 60
-N_ITER = 400
-PRE_BURN_ITER = int(N_ITER/4)
-
-
-# relevant if using mcmc
-CLUSTER = True
-
-RETRIEVAL_NOTES = [
-    ''
-                   ]
-
 # name of retrieval run
-USE_WEIGHTS = False
-
-NUMBER = '01'
-RETRIEVAL_NAME_INPUT = 'TEST_OTHER_PARAMS_v03'
-VERSION = 'retrieval'
+NUMBER = ''
+RETRIEVAL_NAME_INPUT = 'My_spectrum_v01'
+VERSION = '01'
+#DATA_TYPE = 'LRSP'
+#DATA_TYPE = 'CROC'
+DATA_TYPE = 'CC'
 if MODEL == 'free':
     VERSION += '_free'
-RETRIEVAL_NAME = RETRIEVAL_NAME_INPUT + '_v'+NUMBER# + '_no_SINFONI'
+RETRIEVAL_NAME = RETRIEVAL_NAME_INPUT +'_'+ VERSION + '_' + DATA_TYPE
+
 # configure the paths of the input and output files
-IPAGATE_ROUTE = '/home/ipa/quanz/user_accounts/jhayoz/Projects/'
-INPUT_DIR = IPAGATE_ROUTE + 'MT_paper/PAPER_RETRIEVALS/' + RETRIEVAL_NAME_INPUT
-
-#INPUT_DIR = IPAGATE_ROUTE + 'VHS1256b_JWST/'
-
 OUTPUT_DIR = '/scratch/'
 if MACHINE == 'rainbow':
     OUTPUT_DIR += 'user/'
-OUTPUT_DIR += 'jhayoz/RunningJobs/' + RETRIEVAL_NAME +'_'+ VERSION + '/'
+OUTPUT_DIR += 'jhayoz/RunningJobs/' + RETRIEVAL_NAME + '/'
 
+
+IPAGATE_ROUTE = '/home/ipa/quanz/user_accounts/jhayoz/Projects/'
+INPUT_DIR = IPAGATE_ROUTE + 'MT_paper/PAPER_RETRIEVALS/REFEREE_NEW_ANALYSIS/' + RETRIEVAL_NAME_INPUT
 
 SIM_DATA_DIR = INPUT_DIR
 CC_DATA_FILE = INPUT_DIR+'/CC_spectrum'
-RES_DATA_FILE = INPUT_DIR+'/RES_spectrum'
-RES_ERR_FILE = INPUT_DIR+'/RES_error'
+RES_DATA_FILE = INPUT_DIR+'/RES_spectrum' #/SPHERE_IFS.txt'
+RES_ERR_FILE = INPUT_DIR+'/RES_error' #/SPHERE_IFS.txt'
 
-#RES_DATA_FILE = INPUT_DIR+'/spectrum_V2_flux'
-#RES_ERR_FILE = INPUT_DIR+'/spectrum_V2_err'
-
-USE_SIM_DATA = ['CC','RES','PHOT'] #['CC','RES','PHOT']
+if DATA_TYPE == 'CROC':
+    USE_SIM_DATA = ['CC','RES','PHOT'] #['CC','RES','PHOT']
+elif DATA_TYPE == 'LRSP':
+    USE_SIM_DATA = ['RES','PHOT'] #['CC','RES','PHOT']
+else: # DATA_TYPE == 'CC':
+    USE_SIM_DATA = ['CC'] #['CC','RES','PHOT']
+print(USE_SIM_DATA)
 
 # Name of files for respective data. If don't want to use one, write None
-
 PHOT_DATA_FILE = IPAGATE_ROUTE+ 'retrieval_input/PHOT_data'
 if 'PHOT' not in USE_SIM_DATA:
     PHOT_DATA_FILE = None
@@ -110,56 +59,63 @@ if 'PHOT' in USE_SIM_DATA:
     PHOT_DATA_FLUX_FILE = PHOT_DATA_FILE + '/flux'
     PHOT_DATA_FLUX_FILE = INPUT_DIR
 
-# Beta Pictoris b filepaths
-#SIM_DATA_DIR = None
-#CC_DATA_FILE = IPAGATE_ROUTE + 'retrieval_input/BetaPicData/Sinfoni_spectrum_v3.txt'
-#RES_DATA_FILE = IPAGATE_ROUTE + 'retrieval_input/BetaPicData/GRAVITY_spectrum.txt'
-#RES_ERR_FILE = IPAGATE_ROUTE + 'retrieval_input/BetaPicData/GRAVITY_cov_matrix.txt'
-#PHOT_DATA_FLUX_FILE = IPAGATE_ROUTE + 'retrieval_input/BetaPicData/photometric_data'
-#PHOT_DATA_FILTER_FILE = IPAGATE_ROUTE + 'retrieval_input/BetaPicData/filter_transmission_function'
+RETRIEVAL_NOTES = [
+    'Testing CROCODILE'
+                   ]
+
+
+
+
+
+# Define configuration
+MODE = 'lbl'
+LBL_SAMPLING = 10
+
+USE_PRIOR = None
+USE_COV = False
+WINDOW_LENGTH_lbl = 20 # ERIS SPIFFIER
+WINDOW_LENGTH_ck = 41
+
+
+# Hyperparameters of retrieval
+RVMIN = -400. # 400
+RVMAX = 400.
+DRV = 0.5
+BAYESIAN_METHOD = 'pymultinest' # pymultinest, ultranest or mcmc
+#pymultinest
+N_LIVE_POINTS = 800
 
 # diagnostic parameters
-
 WRITE_THRESHOLD = 50
-
 PRINTING = True
 PLOTTING = False
 TIMING = True
 SHOW_REF_VALUES = False
 PLOTTING_THRESHOLD = 10
 
+# Define forward model
 
-# configure parameter space
-
-
-MOL_ABUNDS_KEYS_CK = poor_mans_abunds_ck()
-MOL_ABUNDS_KEYS_LBL = poor_mans_abunds_lbl()
-
-
+# Chemical model
+CHEM_MODEL = 'chem_equ' # 'free' or 'chem_equ'
 #ABUNDANCES = ['H2O_main_iso','CO_main_iso','CH4_main_iso']
-if MODEL == 'free':
-    # all ABUNDANCES= ['H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','H2S_main_iso','NH3_main_iso','FeH_main_iso','HCN_main_iso','TiO_all_iso','PH3_main_iso','K', 'VO','Na','He','H2']
-    #ABUNDANCES = ['H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','H2S_main_iso','NH3_main_iso','FeH_main_iso','HCN_main_iso','TiO_all_iso','PH3_main_iso','K', 'VO','Na']
-    #ABUNDANCES = ['H2O_main_iso','CO_main_iso','CH4_main_iso', 'CO2_main_iso']
-    ABUNDANCES = ['H2O_main_iso','CH4_main_iso', 'CO_main_iso', 'CO2_main_iso','H2S_main_iso','FeH_main_iso','TiO_all_iso','K','VO']
-if MODEL == 'chem_equ':
+if CHEM_MODEL == 'free':
+    #ABUNDANCES = ['H2O_main_iso','CH4_main_iso', 'CO_main_iso', 'CO2_main_iso','H2S_main_iso','FeH_main_iso','TiO_all_iso','K','VO']
+    ABUNDANCES = ['H2O_main_iso', 'CO_main_iso']
+    #ABUNDANCES = [ 'H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','HCN_main_iso','FeH_main_iso','H2S_main_iso','NH3_main_iso','TiO_all_iso','VO']
+if CHEM_MODEL == 'chem_equ':
     ABUNDANCES = ['C/O','FeHs']
-
 UNSEARCHED_ABUNDS = []
 
-if USE_FORECASTER or USE_PRIOR is not None:
-    ALL_TEMPS = ['log_gamma','t_int','t_equ','log_kappa_IR','log_R','P0','log_gravity']
-    TEMP_PARAMS = ['t_int','t_equ','log_R','log_gravity'
+# P-T model
+TEMP_MODEL = 'guillot'
+ALL_TEMPS = ['log_gamma','t_int','t_equ','log_gravity','log_kappa_IR','R','P0']
+TEMP_PARAMS = ['t_equ','log_gravity'#,'R'
                ]#Pick from ALL_TEMPS, and order is relevant: must be like in ALL_TEMPS
-else:
-    ALL_TEMPS = ['log_gamma','t_int','t_equ','log_gravity','log_kappa_IR','R','P0']
-    TEMP_PARAMS = ['t_equ','log_gravity','R'
-               ]#Pick from ALL_TEMPS, and order is relevant: must be like in ALL_TEMPS
-
-
-
 UNSEARCHED_TEMPS = [item for item in ALL_TEMPS if not(item in TEMP_PARAMS)]
 
+# Cloud model
+USE_CHEM_DISEQU = False
+CLOUD_MODEL = None # None or 'grey_cloud' or 'ackermann'
 DO_SCAT_CLOUDS = False
 CLOUDS_OPACITIES = []
 ALL_CLOUDS = []
@@ -178,11 +134,9 @@ PARAMS = [TEMP_PARAMS, ABUNDANCES, CLOUDS]
 PARAMS_NAMES = TEMP_PARAMS + ABUNDANCES + CLOUDS
 UNSEARCHED_PARAMS = [UNSEARCHED_TEMPS, UNSEARCHED_ABUNDS, UNSEARCHED_CLOUDS]
 ALL_PARAMS = TEMP_PARAMS + ABUNDANCES + CLOUDS + UNSEARCHED_TEMPS + UNSEARCHED_ABUNDS + UNSEARCHED_CLOUDS
-
-
 NEEDED_LINE_SPECIES = ABUNDANCES + UNSEARCHED_ABUNDS
 
-if MODEL == 'chem_equ':
+if CHEM_MODEL == 'chem_equ':
     NEEDED_LINE_SPECIES += MOL_ABUNDS_KEYS_LBL
     if 'C/O' in NEEDED_LINE_SPECIES:
         NEEDED_LINE_SPECIES.remove('C/O')
@@ -193,8 +147,7 @@ if MODEL == 'chem_equ':
 # enter reference values here (if data was simulated, their true values)
 
 pc_to_m = 3.086*1e16
-distance_pc = 19.7538 # beta pic b
-#distance_pc = 12.7 # VHS1256b
+distance_pc = 19.7538
 DISTANCE = distance_pc*pc_to_m
 
 RADIUS_J = 69911*1000
@@ -202,117 +155,44 @@ MASS_J = 1.898*1e27
 
 DATA_PARAMS = {}
 
-# beta pic b
-#DATA_PARAMS['log_gamma']      = np.log10(0.4)
-#DATA_PARAMS['t_int']          = 200.
-#DATA_PARAMS['t_equ']          = 1742
-#DATA_PARAMS['log_kappa_IR']   = np.log10(0.01)
-#DATA_PARAMS['R']          = 1.36
-#DATA_PARAMS['log_gravity']    = 4.35
-#DATA_PARAMS['P0']             = 2
-# VHS1256b
-DATA_PARAMS['log_gamma']      = np.log10(0.4)
+# P-T model
+DATA_PARAMS['TEMP_MODEL'] = 'guillot'
+
+DATA_PARAMS['log_gamma']      = log10(0.4)
 DATA_PARAMS['t_int']          = 200.
 DATA_PARAMS['t_equ']          = 1742
-#DATA_PARAMS['t_equ']          = 1380 # Petrus
-#DATA_PARAMS['t_equ']          = 1000
-DATA_PARAMS['log_kappa_IR']   = np.log10(0.01)
+DATA_PARAMS['log_kappa_IR']   = log10(0.01)
 DATA_PARAMS['R']          = 1.36
 DATA_PARAMS['log_gravity']    = 4.35
-#DATA_PARAMS['log_gravity']    = 3.97 # Petrus
 DATA_PARAMS['P0']             = 2
 
-if USE_FORECASTER:
-    from doubleRetrieval.util import sample_to_pdf, skew_gauss_pdf,fit_skewed_gauss,skew_gauss_ppf
-    sample_prior = {}
-    for name in ['mass','radius','log_g']:
-        try:
-            sample_prior[name] = open_spectrum(INPUT_DIR + '/' + name + '_sample_prior.txt')
-        except IOError:
-            print('WE DIDNT FIND NO SAMPLE TO CALCULATE PRIORS FROM')
-        print(np.shape(sample_prior[name]))
-    print(sample_prior.keys())
-    
-    
-    popt_param = {}
-    print('UPDATING DATA PARAMS')
-    # mass
-    DATA_PARAMS['log_M'] = np.log10(np.median(sample_prior['mass']))
-    mass_pdf = sample_to_pdf(sample_prior['mass'])
-    mass_pos = np.linspace(min(sample_prior['mass']),max(sample_prior['mass']),1000)
-    popt_param['log_M'],pcov = fit_skewed_gauss(mass_pos,mass_pdf(mass_pos))
-    
-    # radius
-    DATA_PARAMS['R'] = np.log10(np.median(sample_prior['radius']))
-    radius_pdf = sample_to_pdf(sample_prior['radius'])
-    radius_pos = np.linspace(min(sample_prior['radius']),max(sample_prior['radius']),1000)
-    popt_param['R'],pcov = fit_skewed_gauss(radius_pos,radius_pdf(radius_pos))
-    
-    # log_g
-    DATA_PARAMS['log_gravity'] = np.median(sample_prior['log_g'])
-    log_g_pdf = sample_to_pdf(sample_prior['log_g'])
-    log_g_pos = np.linspace(min(sample_prior['log_g']),max(sample_prior['log_g']),1000)
-    popt_param['log_gravity'],pcov = fit_skewed_gauss(log_g_pos,log_g_pdf(log_g_pos))
-if USE_PRIOR is not None:
-    print('USING PRIORS')
-    from doubleRetrieval.util import sample_to_pdf, fit_gauss,gauss_pdf,gauss_ppf
-    try:
-        sample_prior = open_spectrum(INPUT_DIR + '/'+USE_PRIOR+'_sample_prior.txt')
-    except IOError:
-        print('WE DIDNT FIND NO SAMPLE TO CALCULATE PRIORS FROM')
-    print(np.shape(sample_prior))
-    print('UPDATING DATA PARAMS')
-    
-    #DATA_PARAMS[USE_PRIOR] = np.median(sample_prior)
-    if USE_PRIOR == 'R':
-        print(USE_PRIOR,' = ',DATA_PARAMS['log_R'])
-    quantity_pdf = sample_to_pdf(sample_prior)
-    quantity_pos = np.linspace(min(sample_prior),max(sample_prior),1000)
-    popt_param,pcov = fit_gauss(quantity_pos,quantity_pdf(quantity_pos))
-
-#DATA_PARAMS['H2O_main_iso']   = -2.51
-#DATA_PARAMS['CO_main_iso']    = -2.82
-#DATA_PARAMS['CH4_main_iso']   = -5.18
-#DATA_PARAMS['H2O_main_iso']   = -3.1
-#DATA_PARAMS['CO_main_iso']    = -3.3
-#DATA_PARAMS['CH4_main_iso']   = -4.5
-#DATA_PARAMS['CO2_main_iso']   = -4.2
-#DATA_PARAMS['H2S_main_iso']   = -4.2
-#DATA_PARAMS['H2O_main_iso']   = -1.8
-#DATA_PARAMS['CO_main_iso']    = -1.6
-"""
-DATA_PARAMS['CH4_main_iso']   = -3.8
-DATA_PARAMS['CO2_main_iso']   = -4.6
-DATA_PARAMS['H2S_main_iso']   = -2.9
-DATA_PARAMS['VO']   = -6.6
-DATA_PARAMS['TiO_all_iso']    = -6.7
-DATA_PARAMS['K']   = -5.1
-DATA_PARAMS['FeH_main_iso']   = -6.2
-"""
-#DATA_PARAMS['C/O'] = 0.44
+# Chemical model
+DATA_PARAMS['CHEM_MODEL'] = 'free'
+#DATA_PARAMS['C/O'] = 0.3
 #DATA_PARAMS['FeHs'] = 0.66
-#DATA_PARAMS['H2O_main_iso']   = -1.8
+DATA_PARAMS['H2O_main_iso']   = -1.8
+DATA_PARAMS['CO_main_iso']    = -1.6
 
-
-
+# Cloud model
 #DATA_PARAMS['log_kzz'] = 9.8
 #DATA_PARAMS['fsed'] = 1.88
 #DATA_PARAMS['sigma_lnorm'] = 1.9 # as HR8799e
+
 DATA_PARAMS['cloud_abunds'] = {}
 #DATA_PARAMS['cloud_abunds']['Mg2SiO4(c)'] = -1
+#DATA_PARAMS['log_Pcloud']     = log10(0.5)
 
-#DATA_PARAMS['log_Pcloud']     = np.log10(0.5)
 
 # configure prior distributions
 
-# define range of uniform distributions
+# define parameters of prior distributions
 
 RANGE = {}
 RANGE['log_gamma']      = [-4,0]
 RANGE['t_int']          = [0,1000]
 RANGE['t_equ']          = [0,5000]
 RANGE['log_gravity']    = [1,8] #[-2,10]
-RANGE['log_kappa_IR']   = [-5,0]
+RANGE['log_kappa_IR']   = [-2,2]
 #RANGE['log_R']          = [DATA_PARAMS['log_R']-0.5,DATA_PARAMS['log_R']+0.5]
 RANGE['R']          = [0.01,20]
 RANGE['P0']             = [-2,2]
@@ -327,8 +207,7 @@ RANGE['sigma_lnorm']    = [1.001,6]
 for name in DATA_PARAMS['cloud_abunds']:
     RANGE[name]     = [-10,0]
 
-# true prior distribution, used as sanity check before calculating likelihood
-
+# define prior distributions
 LOG_PRIORS = {}
 LOG_PRIORS['log_gamma']      = lambda x: a_b_range(x,RANGE['log_gamma'])
 LOG_PRIORS['t_int']          = lambda x: a_b_range(x,RANGE['t_int'])
@@ -353,8 +232,7 @@ for name in DATA_PARAMS['cloud_abunds']:
     LOG_PRIORS[name]     = lambda x: a_b_range(x,RANGE['abundances'])
 
 
-# transformation of the unit cube to correspond to prior distribution
-
+# pymultinest uses unit cube, so define transformation of the unit cube corresponding to the prior distributions
 CUBE_PRIORS = {}
 CUBE_PRIORS['log_gamma']      = lambda x: uniform_prior(x,RANGE['log_gamma'])
 CUBE_PRIORS['t_int']          = lambda x: uniform_prior(x,RANGE['t_int'])
@@ -378,16 +256,6 @@ CUBE_PRIORS['sigma_lnorm'] = lambda x: uniform_prior(x,RANGE['sigma_lnorm'])
 for name in DATA_PARAMS['cloud_abunds'].keys():
     CUBE_PRIORS[name]     = lambda x: uniform_prior(x,RANGE['abundances'])
 
-if USE_FORECASTER:
-    print('Creating priors with Forecaster')
-    RANGE['log_R'] = [-2,2]
-    RANGE['log_M'] = [-2,2]
-    
-    LOG_PRIORS['log_R'] = lambda x: skew_gauss_pdf(10**x,*popt_param['log_R'])
-    LOG_PRIORS['log_M'] = lambda x: skew_gauss_pdf(10**x,*popt_param['log_M'])
-    
-    CUBE_PRIORS['log_R']= lambda x: np.log10(skew_gauss_ppf(x,*popt_param['log_R']))
-    CUBE_PRIORS['log_M']= lambda x: np.log10(skew_gauss_ppf(x,*popt_param['log_M']))
 if USE_PRIOR is not None:
     print('Creating priors on Mass')
     if USE_PRIOR == 'M':
@@ -400,10 +268,10 @@ if USE_PRIOR is not None:
         CUBE_PRIORS['log_R']= lambda x: gauss_ppf(x,*popt_param)
 
 CONFIG_DICT = {}
-CONFIG_DICT['MODEL'] = MODEL
+CONFIG_DICT['CHEM_MODEL'] = CHEM_MODEL
 CONFIG_DICT['MODE'] = MODE
-CONFIG_DICT['USE_FORECASTER'] = USE_FORECASTER
 CONFIG_DICT['USE_PRIOR'] = USE_PRIOR
+CONFIG_DICT['USE_COV'] = USE_COV
 CONFIG_DICT['ALL_PARAMS'] = ALL_PARAMS
 CONFIG_DICT['ABUNDANCES'] = ABUNDANCES
 CONFIG_DICT['NEEDED_LINE_SPECIES'] = NEEDED_LINE_SPECIES
