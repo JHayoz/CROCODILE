@@ -18,20 +18,14 @@ import matplotlib.pyplot as plt
 import random
 import sys
 import numpy as np
-#os.environ["pRT_input_data_path"] = "/scratch/software/petitRADTRANS/petitRADTRANS/input_data"
 os.environ["pRT_input_data_path"] = "/home/ipa/quanz/shared/petitRADTRANS/input_data"
 
 from os import path
-#sys.path.append("/scratch/software/petitRADTRANS/")
-#sys.path.append("/home/ipa/quanz/shared/petitRADTRANS/")
 from petitRADTRANS import Radtrans
-#from petitRADTRANS import nat_cst as nc
 import pickle
 import json
-#import scipy.stats, scipy
 
 # import all modules
-#from doubleRetrieval.util import *
 from core.priors import Prior
 from core.data2 import Data
 from core.retrievalClass3 import Retrieval
@@ -261,7 +255,7 @@ else: #MCMC
                      output_files = OUTPUT_DIR,
                      title = 'Walkers of '+RETRIEVAL_NAME
                      )
-"""
+
 nb_positions = len(samples)
 percent_considered = 1.
 if BAYESIAN_METHOD == 'mcmc':
@@ -294,4 +288,4 @@ if not path.exists(OUTPUT_DIR + 'CC_function'):
             plot_SNR(CONFIG_DICT,wlen_CC,flux_CC,CC_wlen_data,CC_flux_data,output_file = OUTPUT_DIR,title='C-C function for '+RETRIEVAL_NAME+' '+VERSION,printing=True)
         except:
             pass
-"""
+
