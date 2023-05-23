@@ -14,7 +14,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     long_description = long_description,
     long_description_content_type='text/markdown',
-    url='git@github.com:JHayoz/package_jura_rv_curve_jean',
+    url='git@github.com:JHayoz/CROCODILE',
     install_requires=['numpy','matplotlib'],
     classifiers=['Programming Language :: Python :: 3'],
 )

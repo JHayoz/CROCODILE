@@ -7,12 +7,10 @@ Created on Fri May 28 10:15:36 2021
 
 import numpy as np
 import sys
-from petitRADTRANS import radtrans as rt
+import petitRADTRANS as rt
 from petitRADTRANS import nat_cst as nc
-
-sys.path.append("/home/ipa/quanz/shared/petitRADTRANS")
-from poor_mans_nonequ_chem import *
-sys.path.remove("/home/ipa/quanz/shared/petitRADTRANS")
+from petitRADTRANS import physics
+from petitRADTRANS.poor_mans_nonequ_chem import *
 
 from core.util import filter_relevant_mass_fractions,get_MMWs,name_ck
 import sys
@@ -37,7 +35,7 @@ def guillot_temp_model(
         Array containing the temperature of each atmospheric layer.
     """
     pressures = np.logspace(-6, temp_model_params['P0'], 100)
-    temperatures = nc.guillot_global(
+    temperatures = physics.guillot_global(
                 pressures,
                 1e1**temp_model_params['log_kappa_IR'],
                 1e1**temp_model_params['log_gamma'],
