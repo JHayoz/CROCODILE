@@ -18,7 +18,9 @@ import matplotlib.pyplot as plt
 import random
 import sys
 import numpy as np
-os.environ["pRT_input_data_path"] = "/home/ipa/quanz/shared/petitRADTRANS/input_data"
+
+from config_petitRADTRANS import *
+os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 
 from os import path
 from petitRADTRANS import Radtrans

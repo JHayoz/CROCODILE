@@ -17,7 +17,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 import sys
-os.environ["pRT_input_data_path"] = "/home/ipa/quanz/shared/petitRADTRANS/input_data"
+
+from config_petitRADTRANS import *
+os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 
 from core.forward_model import ForwardModel
 from core.plotting import plot_data,plot_profiles

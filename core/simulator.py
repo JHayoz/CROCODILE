@@ -8,10 +8,8 @@ Created on Tue Mar 30 11:27:23 2021
 import sys
 
 import os
-os.environ["pRT_input_data_path"] = "/home/ipa/quanz/shared/petitRADTRANS/input_data"
-
-from os import path
-sys.path.append("/home/ipa/quanz/shared/petitRADTRANS/")
+from config_petitRADTRANS import *
+os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 
 from petitRADTRANS import radtrans as rt
 from petitRADTRANS import nat_cst as nc

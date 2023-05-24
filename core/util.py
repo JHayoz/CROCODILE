@@ -10,7 +10,8 @@ import numpy as np
 import os
 import re
 from mendeleev import element
-os.environ["pRT_input_data_path"] = "/home/ipa/quanz/shared/petitRADTRANS/input_data"
+from config_petitRADTRANS import *
+os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 import sys
 
 from PyAstronomy.pyasl import crosscorrRV,fastRotBroad,rotBroad
