@@ -7,7 +7,7 @@ Created on Mon Jun 21 12:05:33 2021
 print('IMPORTING LIBRARIES')
 import os
 os.environ['OMP_NUM_THREADS'] = '1'
-from sim_config2 import *
+from sim_config import *
 print('    CONFIG READ')
 
 import numpy as np
@@ -23,7 +23,7 @@ from core.forward_model import ForwardModel
 from core.plotting import plot_data,plot_profiles
 from core.util import convert_units,save_photometry,save_spectrum,trim_spectrum,calc_cov_matrix,save_spectra,save_lines
 from core.rebin import rebin_to_CC,rebin,doppler_shift,rebin_to_RES,rebin_to_PHOT,only_gaussian_filter
-from core.data2 import Data
+from core.data import Data
 from core.rotbroad_utils import add_rot_broad
 
 import csv
@@ -35,8 +35,8 @@ if not os.path.exists(OUTPUT_DIR):
 import shutil
 
 cwd = os.getcwd()
-source = cwd+'/sim_config2.py'
-destination = OUTPUT_DIR+'/sim_config2_copy.py'
+source = cwd+'/sim_config.py'
+destination = OUTPUT_DIR+'/sim_config_copy.py'
 shutil.copyfile(source,destination)
 print('Config file copied')
 

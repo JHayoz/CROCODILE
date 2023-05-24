@@ -10,8 +10,8 @@ from spectres import spectres
 from scipy.signal import savgol_filter
 from scipy.fft import fft, ifft
 from scipy.ndimage import gaussian_filter,median_filter
-from core.util import convert_units,synthetic_photometry,calc_median_filter,effective_width_filter
 from time import time
+from core.util import convert_units,synthetic_photometry,calc_median_filter,effective_width_filter
 
 # help functions to rebin the flux
 def rebin(wlen,flux,wlen_data,flux_err = None, method='linear'):

@@ -15,8 +15,8 @@ import pymultinest
 import pickle
 
 from core.plotting import plot_corner,plot_retrieved_temperature_profile,plot_CO_ratio,plot_retrieved_abunds,plot_retrieved_spectra_FM_dico
-from core.data2 import Data
-from core.retrievalClass3 import Retrieval
+from core.data import Data
+from core.retrievalClass import Retrieval
 from core.forward_model import ForwardModel
 #from core.util import *
 #from core.rebin import *
@@ -28,7 +28,7 @@ IPAGATE_ROUTE = '/home/ipa/quanz/user_accounts/jhayoz/Projects/'
 retrieval = 'My_spectrum_v01_01_CROC'
 sim_data_input = 'My_spectrum_v01'
 input_dir = IPAGATE_ROUTE + 'Quick_spectra/'+sim_data_input+'/'+retrieval
-input_dir = '/scratch/jhayoz/RunningJobs/My_spectrum_v01_01_CROC'
+input_dir = '/scratch/jhayoz/RunningJobs/My_spectrum_v01_chem_equ_CROC'
 
 BAYESIAN_METHOD = 'pymultinest'
 
@@ -39,7 +39,7 @@ with open(input_dir + '/SAMPLESpos.pickle','rb') as f:
 
 import sys
 sys.path.append(input_dir)
-from config3 import *
+from config import *
 
 fontsize=12
 lw=0.8

@@ -10,7 +10,7 @@ Created on Mon Jun 21 15:32:01 2021
 print('IMPORTING LIBRARIES')
 import os
 os.environ['OMP_NUM_THREADS'] = '1'
-from config3 import *
+from config import *
 print('    CONFIG READ')
 import matplotlib
 matplotlib.use('Agg')
@@ -27,8 +27,8 @@ import json
 
 # import all modules
 from core.priors import Prior
-from core.data2 import Data
-from core.retrievalClass3 import Retrieval
+from core.data import Data
+from core.retrievalClass import Retrieval
 from core.plotting import plot_corner,plot_SNR,plot_walkers,plot_retrieved_spectra_FM_dico
 
 print('    DONE')
@@ -53,8 +53,8 @@ if not os.path.exists(OUTPUT_DIR):
 import shutil
 
 cwd = os.getcwd()
-source = cwd+'/config3.py'
-destination = OUTPUT_DIR+'config3_copy.py'
+source = cwd+'/config.py'
+destination = OUTPUT_DIR+'config_copy.py'
 shutil.copyfile(source,destination)
 print('Config file copied')
 
@@ -75,7 +75,7 @@ data_obj = Data(data_dir = None,
                 RES_err_dir=RES_ERR_FILE,
                 verbose=True)
 
-# data_obj.plot(CONFIG_DICT,OUTPUT_DIR+'data',plot_errorbars=False,inset_plot=False)
+data_obj.plot(CONFIG_DICT,OUTPUT_DIR+'data',plot_errorbars=False,inset_plot=False)
 
 # Check that the retrieval does what I want it to do
 if 'CC' in USE_SIM_DATA:

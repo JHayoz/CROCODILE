@@ -5,13 +5,13 @@ Created on Mon Jun 21 09:44:19 2021
 @author: jeanh
 """
 
-from .util import *
 from scipy.interpolate import interp1d
 import numpy as np
 from numpy.linalg import inv
 import os
-from .plotting import plot_data
 from itertools import combinations
+from .plotting import plot_data
+from .util import *
 
 class Data:
     def __init__(self,
@@ -49,14 +49,6 @@ class Data:
         self.RES_inv_cov = {}
         self.RES_data_flux_err = {}
         
-        """
-        if 'PHOT' in use_sim_files:
-            self.PHOT_data_filter,self.PHOT_filter_function,self.PHOT_data_flux,self.PHOT_data_err,self.PHOT_filter_midpoint,self.PHOT_filter_width={},{},{},{},{},{}
-        if 'CC' in use_sim_files:
-            self.CC_data_wlen,self.CC_data_flux,self.CC_data_N,self.CC_data_sf2={},{},{},{}
-        if 'RES' in use_sim_files:
-            self.RES_data_wlen,self.RES_data_flux,self.RES_cov_err,self.RES_inv_cov,self.RES_data_flux_err={},{},{},{},{}
-        """
         if data_dir is not None:
             for files in os.listdir(data_dir):
                 if 'spectrum' in files:
@@ -343,9 +335,10 @@ class Data:
              plot_name = 'plot',
              title = 'Spectrum',
              inset_plot=True,
-             plot_errorbars=True):
+             plot_errorbars=True,
+             saving=True):
         
-        plot_data(config,
+        fig = plot_data(config,
                   CC_wlen       = self.CC_data_wlen,
                   CC_flux       = self.CC_data_flux,
                   RES_wlen      = self.RES_data_wlen,
@@ -362,7 +355,9 @@ class Data:
                   output_file   = output_dir,
                   title         = title,
                   plot_name     = plot_name,
-                  plot_errorbars= plot_errorbars)
+                  plot_errorbars= plot_errorbars,
+                  saving=saving)
+        return fig
 
 
 def index_last_slash(string):

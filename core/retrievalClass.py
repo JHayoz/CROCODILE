@@ -8,9 +8,7 @@ Created on Fri May 28 10:32:56 2021
 import sys
 import os
 os.environ["pRT_input_data_path"] = "/home/ipa/quanz/shared/petitRADTRANS/input_data"
-
 from os import path
-#sys.path.append("/home/ipa/quanz/shared/petitRADTRANS/")
 from petitRADTRANS import radtrans as rt
 from petitRADTRANS import nat_cst as nc
 from petitRADTRANS import physics
@@ -25,7 +23,6 @@ from PyAstronomy.pyasl import crosscorrRV
 
 from core.util import convert_units
 from core.rebin import rebin_to_RES,rebin_to_CC,rebin_to_PHOT,doppler_shift
-#from doubleRetrieval.plotting import *
 from core.forward_model import ForwardModel
 from core.rotbroad_utils import trim_spectrum
 

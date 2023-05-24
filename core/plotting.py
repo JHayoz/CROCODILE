@@ -4,11 +4,9 @@ Created on Mon Jan 25 09:40:17 2021
 
 @author: jeanh
 """
-
 # help functions to plot simulated spectra or the results of the retrieval
 
 import matplotlib.pyplot as plt
-#from mpl_toolkits.axes_grid.inset_locator import (inset_axes, InsetPosition,mark_inset)
 from corner import corner
 import numpy as np
 from scipy.ndimage import gaussian_filter
@@ -18,13 +16,13 @@ from random import sample
 from PyAstronomy.pyasl import crosscorrRV,fastRotBroad,rotBroad
 import scipy.constants as cst
 from seaborn import color_palette
+from petitRADTRANS import physics
 
 from core.util import *
-from core.model2 import *
+from core.model import *
 from core.rebin import *
 from core.plot_errorbars_abundances import Errorbars_plot,Posterior_Classification_Errorbars
 
-from petitRADTRANS import physics
 
 def plot_data(config,
               CC_wlen = None,
@@ -52,14 +50,13 @@ def plot_data(config,
               plot_name='plot',
               title = 'Spectrum',
               fontsize=15,
-              plot_errorbars=True):
-    
+              plot_errorbars=True,
+              saving=True):
+    # define labels
     wvl_label = 'Wavelength [$\mu$m]'
     filter_label = 'Filter trsm.'
     flux_label = 'Flux [Wm$^{-2}\mu$m$^{-1}$]'
     CC_flux_label = 'Residuals [Wm$^{-2}\mu$m$^{-1}$]'
-    
-    
     
     # change arguments to None if they are empty dictionaries
     if isinstance(CC_wlen,dict):
@@ -70,221 +67,193 @@ def plot_data(config,
             RES_wlen,RES_flux,RES_flux_err,model_RES_wlen,model_RES_flux=None,None,None,None,None
     if isinstance(PHOT_flux,dict):
         if len(PHOT_flux.keys()) == 0:
-            PHOT_midpoint,PHOT_width,PHOT_flux,PHOT_flux_err,PHOT_filter,PHOT_sim_wlen,PHOT_sim_flux,model_PHOT_flux=None,None,None,None,None,None,None,None
+            PHOT_midpoint,PHOT_width,PHOT_flux,PHOT_flux_err,PHOT_filter,PHOT_sim_wlen,PHOT_sim_flux,model_PHOT_flux \
+                =None,None,None,None,None,None,None,None
     
+    plot_filter = PHOT_filter is not None
+    plot_spectrum = (CC_wlen_w_cont is not None) or (RES_wlen is not None) or (model_RES_wlen is not None) or (PHOT_flux is not None) or (PHOT_sim_wlen is not None) or (model_PHOT_flux is not None)
+    plot_CC_spectrum = (CC_wlen is not None) or (model_CC_wlen is not None)
     
-    nb_plots = (PHOT_filter is not None) + 2*((PHOT_flux is not None) or (PHOT_sim_wlen is not None or RES_wlen is not None)) + (CC_flux is not None) + (sgfilter is not None or CC_wlen_w_cont is not None)
+    nb_plots = int(plot_filter) + 2*int(plot_spectrum) + int(plot_CC_spectrum)
     print('Number of plots:',nb_plots)
     fig = plt.figure(figsize=(10,2*nb_plots))
-    
-    plot_i = 1
-    """ZERO-TH PLOT"""
-    
-    # determine order of filters wrt filter midpoint
-    if PHOT_flux is not None:
-        
-        filter_pos = filter_position(PHOT_midpoint)
-        # give photometric fluxes a nice color
-        rgba = {}
-        cmap = color_palette('colorblind',n_colors = len(PHOT_flux.keys()),as_cmap = True)
-        
-        for instr in PHOT_flux.keys():
-            rgba[instr] = cmap[filter_pos[instr]%len(cmap)]
-    
-        
-    
-    """FILTER TRANSMISSION FUNCTIONS"""
-    
-    if PHOT_filter is not None and PHOT_flux is not None:
-        
+    plot_i=1
+    """FILTER TRANSMISSION FUNCTION"""
+    if plot_filter:
         print('new plot',plot_i)
         ax = plt.subplot(nb_plots,1,plot_i) 
-        ax.set_title(title,fontsize=fontsize)
-        x_min = 100
-        x_max = 0
-        for instr in PHOT_filter.keys():
-            ax.plot(PHOT_filter[instr][0],PHOT_filter[instr][1],color=rgba[instr])
-            x_min = min(x_min,PHOT_filter[instr][0][0])
-            x_max = max(x_max,PHOT_filter[instr][0][-1])
+        # determine order of filters wrt filter midpoint
+        if PHOT_flux is not None:
+            filter_pos = filter_position(PHOT_midpoint)
+            # give photometric fluxes a nice color
+            rgba = {}
+            cmap = color_palette('colorblind',n_colors = len(PHOT_flux.keys()),as_cmap = True)
+            for instr in PHOT_flux.keys():
+                rgba[instr] = cmap[filter_pos[instr]%len(cmap)]
         
-        
-        ax.set_xlabel(wvl_label,fontsize=fontsize)
-        ax.set_ylabel(filter_label,fontsize=fontsize)
-        ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
-        ax.set_xlim((x_min-0.2,x_max+0.2))
-        
+        # plot filter trsm functions
+        if PHOT_filter is not None:
+            ax.set_title(title,fontsize=fontsize)
+            x_min = 100
+            x_max = 0
+            for instr in PHOT_filter.keys():
+                ax.plot(PHOT_filter[instr][0],PHOT_filter[instr][1],color=rgba[instr])
+                x_min = min(x_min,PHOT_filter[instr][0][0])
+                x_max = max(x_max,PHOT_filter[instr][0][-1])
+            ax.set_xlabel(wvl_label,fontsize=fontsize)
+            ax.set_ylabel(filter_label,fontsize=fontsize)
+            ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
+            ax.set_xlim((x_min-0.2,x_max+0.2))
         plot_i += 1
     
-    
-    """FIRST PLOT"""
-    if RES_flux_err is not None:
-        YERR = None
-        if isinstance(RES_flux_err,dict):
-            YERR = {}
-            for key in RES_flux_err.keys():
-                print('RES flux shape:',key,np.shape(RES_flux_err[key]))
-                if len(np.shape(RES_flux_err[key])) >= 2:
-                    # if it's a covariance matrix
-                    YERR[key] = [np.sqrt(RES_flux_err[key][i][i]) for i in range(len(RES_flux_err[key]))]
-                else:
-                    # if it's a vector of error
-                    YERR[key] = RES_flux_err[key]
-        else:
-            if len(np.shape(RES_flux_err)) >= 2:
-                # if it's a covariance matrix
-                YERR = [np.sqrt(RES_flux_err[i][i]) for i in range(len(RES_flux_err))]
-            else:
-                # if it's a vector of error
-                YERR = RES_flux_err
-    
-    if PHOT_flux is not None or PHOT_sim_wlen is not None:
-        
+    """Continuum-included spectra"""
+    if plot_spectrum:
         ax = plt.subplot(nb_plots,1,(plot_i,plot_i+1))
         print('new plot',plot_i)
         
-        
-        
-        """RESIDUALS DATA"""
-        if RES_flux_err is not None and plot_errorbars:
-            print('Plot data')
+        # determine the y-errorbars
+        if RES_flux_err is not None:
+            YERR = None
             if isinstance(RES_flux_err,dict):
-                print(RES_wlen.keys(),RES_flux.keys(),YERR.keys())
-                for key in RES_wlen.keys():
-                    print(key, np.shape(RES_wlen[key]),np.shape(RES_flux[key]),np.shape(YERR[key]))
+                YERR = {}
+                for key in RES_flux_err.keys():
+                    print('RES flux shape:',key,np.shape(RES_flux_err[key]))
+                    if len(np.shape(RES_flux_err[key])) >= 2:
+                        # if it's a covariance matrix
+                        YERR[key] = [np.sqrt(RES_flux_err[key][i][i]) for i in range(len(RES_flux_err[key]))]
+                    else:
+                        # if it's a vector of error
+                        YERR[key] = RES_flux_err[key]
             else:
-                print(np.shape(RES_wlen),np.shape(RES_flux),np.shape(YERR))
-            ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,fmt='|',color='b',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
+                if len(np.shape(RES_flux_err)) >= 2:
+                    # if it's a covariance matrix
+                    YERR = [np.sqrt(RES_flux_err[i][i]) for i in range(len(RES_flux_err))]
+                else:
+                    # if it's a vector of error
+                    YERR = RES_flux_err
         
-        if RES_wlen is not None:
-            ax = custom_plot(ax,RES_wlen,RES_flux,color='b',alpha=0.5,marker='+',label='GRAVITY spectrum',zorder=1)
-            if model_RES_wlen is not None:
-                print('Plot model')
-                ax = custom_plot(ax,model_RES_wlen,model_RES_flux,color='r',label='Retrieved GRAVITY spectrum',zorder=1)
-        
-        """PHOTOMETRIC DATA"""
-        
-        if PHOT_flux is not None:
-            
-            for instr in PHOT_flux.keys():
-                yerr = None
-                if PHOT_flux_err is not None:
-                    yerr = PHOT_flux_err[instr]
-                ax.errorbar(PHOT_midpoint[instr],PHOT_flux[instr],xerr = PHOT_width[instr]/2, yerr = yerr,color=rgba[instr],zorder=2)
-                
-            if model_PHOT_flux is not None:
-                for instr in model_PHOT_flux.keys():
-                    ax.errorbar(PHOT_midpoint[instr],model_PHOT_flux[instr],xerr = PHOT_width[instr]/2,color='r',zorder=2)
-        
-        """SIMULATED SPECTRUM FOR SIMULATED DATA"""
-        
-        if PHOT_sim_wlen is not None:
-            ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',label='Simulated spectrum')
-            
         if PHOT_flux is not None or PHOT_sim_wlen is not None:
-            #ax.legend(fontsize=fontsize)
+            """RESIDUALS DATA"""
+            if RES_flux_err is not None and plot_errorbars:
+                print('Plot data')
+                if isinstance(RES_flux_err,dict):
+                    print(RES_wlen.keys(),RES_flux.keys(),YERR.keys())
+                    for key in RES_wlen.keys():
+                        print(key, np.shape(RES_wlen[key]),np.shape(RES_flux[key]),np.shape(YERR[key]))
+                else:
+                    print(np.shape(RES_wlen),np.shape(RES_flux),np.shape(YERR))
+                ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,fmt='|',color='b',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
+
+            if RES_wlen is not None:
+                ax = custom_plot(ax,RES_wlen,RES_flux,color='b',alpha=0.5,marker='+',label='GRAVITY spectrum',zorder=1)
+                if model_RES_wlen is not None:
+                    print('Plot model')
+                    ax = custom_plot(ax,model_RES_wlen,model_RES_flux,color='r',label='Retrieved GRAVITY spectrum',zorder=1)
+
+            """PHOTOMETRIC DATA"""
+            if PHOT_flux is not None:
+
+                for instr in PHOT_flux.keys():
+                    yerr = None
+                    if PHOT_flux_err is not None:
+                        yerr = PHOT_flux_err[instr]
+                    ax.errorbar(PHOT_midpoint[instr],PHOT_flux[instr],xerr = PHOT_width[instr]/2, yerr = yerr,color=rgba[instr],zorder=2)
+
+                if model_PHOT_flux is not None:
+                    for instr in model_PHOT_flux.keys():
+                        ax.errorbar(PHOT_midpoint[instr],model_PHOT_flux[instr],xerr = PHOT_width[instr]/2,color='r',zorder=2)
+
+            """SIMULATED SPECTRUM FOR SIMULATED DATA"""
+            if PHOT_sim_wlen is not None:
+                ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',label='Simulated spectrum')
+
+            if PHOT_flux is not None or PHOT_sim_wlen is not None:
+                #ax.legend(fontsize=fontsize)
+                ax.set_xlabel(wvl_label,fontsize=fontsize)
+                ax.set_ylabel(flux_label,fontsize=fontsize)
+                ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
+                ax.set_xlim((x_min-0.2,x_max+0.2))
+
+
+        if RES_wlen is not None:
+            """RESIDUAL DATA"""
+            if RES_flux_err is not None and plot_errorbars:
+                ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,color='b',fmt='|',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
+
+            #ax2 = custom_plot(ax2,RES_wlen,RES_flux,color='b',alpha=0.5,lw = 0.5,label='GRAVITY spectrum')
+
+            if model_RES_wlen is not None:
+                print('Plot model in inset')
+                ax = custom_plot(ax,model_RES_wlen,model_RES_flux,color='r',lw = 0.5,label='Retrieved GRAVITY spectrum',zorder=1)
+            if PHOT_sim_wlen is not None:
+                ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',lw = 0.5,label='Retrieved spectrum',zorder=1)
+
+            if PHOT_flux is not None:
+
+                for instr in PHOT_flux.keys():
+                    yerr = None
+                    if PHOT_flux_err is not None:
+                        yerr = PHOT_flux_err[instr]
+                    ax.errorbar(PHOT_midpoint[instr],PHOT_flux[instr],xerr = PHOT_width[instr]/2, yerr = yerr,color=rgba[instr],zorder=2)
+
+            #ax2.legend(fontsize=fontsize)
+            ax.set_xlabel(wvl_label,fontsize=fontsize-4)
+            ax.set_ylabel('GRAVITY',fontsize=fontsize-4)
+            ax.tick_params(axis='both',which='both',labelsize=fontsize-4)
+            # remove following lines because something keeps crashing
+            if isinstance(RES_wlen,dict):
+                ax.set_xlim((min([RES_wlen[key][0] for key in RES_wlen.keys()]),max([RES_wlen[key][-1] for key in RES_wlen.keys()])))
+                ax.set_ylim((min([min(RES_flux[key])*0.975 for key in RES_wlen.keys()]),max([max(RES_flux[key])*1.025 for key in RES_wlen.keys()])))
+            else:
+                ax.set_xlim((RES_wlen[0],RES_wlen[-1]))
+                ax.set_ylim((min(RES_flux)*0.9,max(RES_flux)*1.1))
+
+
+        """FILTER TO REMOVE CONTINUUM"""
+        if sgfilter is not None and CC_wlen_w_cont is not None:
+            ax = custom_plot(ax,CC_wlen_w_cont,CC_flux_w_cont,color='k',lw=0.5,label='SINFONI spectrum')
+            ax = custom_plot(ax,CC_wlen,sgfilter,color='r',lw=0.5,label='Filter')
+
+            if model_RES_wlen is not None:
+                ax = custom_plot(ax,model_RES_wlen,model_RES_flux,color='blueviolet',lw = 0.5,label='Retrieved GRAVITY spectrum')
+
+            if PHOT_sim_wlen is not None:
+                ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',ls='--',lw = 0.5,label='Retrieved spectrum')
+
+            xlim_min,xlim_max = min([CC_wlen[key][0] for key in CC_wlen.keys()]),max([CC_wlen[key][-1] for key in CC_wlen.keys()])
+            ax.set_xlim((xlim_min,xlim_max))
+            ax.legend(fontsize=fontsize)
             ax.set_xlabel(wvl_label,fontsize=fontsize)
             ax.set_ylabel(flux_label,fontsize=fontsize)
             ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
-            ax.set_xlim((x_min-0.2,x_max+0.2))
-            plot_i += 1 # was 2
+        plot_i += 2
     
-    
-    if RES_wlen is not None:
-        
-        ax2 = plt.subplot(nb_plots,1,(plot_i,plot_i+1))
-        plot_i += 1
-        
-        #ax = plt.subplot(nb_plots,1,(plot_i,plot_i+1))
+    if plot_CC_spectrum:
+        ax = plt.subplot(nb_plots,1,plot_i)
         print('new plot',plot_i)
-        """RESIDUAL DATA"""
-        if RES_flux_err is not None and plot_errorbars:
-            print('Plot data in inset')
-            ax2 = custom_errorbar(ax2,RES_wlen,RES_flux,xerr=None,yerr = YERR,color='b',fmt='|',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
-
-        #ax2 = custom_plot(ax2,RES_wlen,RES_flux,color='b',alpha=0.5,lw = 0.5,label='GRAVITY spectrum')
-
-        if model_RES_wlen is not None:
-            print('Plot model in inset')
-            ax2 = custom_plot(ax2,model_RES_wlen,model_RES_flux,color='r',lw = 0.5,label='Retrieved GRAVITY spectrum',zorder=1)
-        if PHOT_sim_wlen is not None:
-            ax2 = custom_plot(ax2,PHOT_sim_wlen,PHOT_sim_flux,color='k',lw = 0.5,label='Retrieved spectrum',zorder=1)
-
-        if PHOT_flux is not None:
-
-            for instr in PHOT_flux.keys():
-                yerr = None
-                if PHOT_flux_err is not None:
-                    yerr = PHOT_flux_err[instr]
-                ax2.errorbar(PHOT_midpoint[instr],PHOT_flux[instr],xerr = PHOT_width[instr]/2, yerr = yerr,color=rgba[instr],zorder=2)
-
-        #ax2.legend(fontsize=fontsize)
-        ax2.set_xlabel(wvl_label,fontsize=fontsize-4)
-        ax2.set_ylabel('GRAVITY',fontsize=fontsize-4)
-        ax2.tick_params(axis='both',which='both',labelsize=fontsize-4)
-        # remove following lines because something keeps crashing
-        if isinstance(RES_wlen,dict):
-            ax2.set_xlim((min([RES_wlen[key][0] for key in RES_wlen.keys()]),max([RES_wlen[key][-1] for key in RES_wlen.keys()])))
-            ax2.set_ylim((min([min(RES_flux[key])*0.975 for key in RES_wlen.keys()]),max([max(RES_flux[key])*1.025 for key in RES_wlen.keys()])))
-        else:
-            ax2.set_xlim((RES_wlen[0],RES_wlen[-1]))
-            ax2.set_ylim((min(RES_flux)*0.9,max(RES_flux)*1.1))
-            
-    
-    
-    if sgfilter is not None and CC_wlen_w_cont is not None:
-        
-        """THIRD PLOT"""
-        
-        
-        ax = plt.subplot(nb_plots,1,plot_i)
-        #print('new plot',plot_i)
-        ax = custom_plot(ax,CC_wlen_w_cont,CC_flux_w_cont,color='k',lw=0.5,label='SINFONI spectrum')
-        ax = custom_plot(ax,CC_wlen,sgfilter,color='r',lw=0.5,label='Filter')
-        
-        if model_RES_wlen is not None:
-            ax = custom_plot(ax,model_RES_wlen,model_RES_flux,color='blueviolet',lw = 0.5,label='Retrieved GRAVITY spectrum')
-        
-        if PHOT_sim_wlen is not None:
-            ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',ls='--',lw = 0.5,label='Retrieved spectrum')
-        
-        xlim_min,xlim_max = min([CC_wlen[key][0] for key in CC_wlen.keys()]),max([CC_wlen[key][-1] for key in CC_wlen.keys()])
-        ax.set_xlim((xlim_min,xlim_max))
-        ax.legend(fontsize=fontsize)
-        ax.set_xlabel(wvl_label,fontsize=fontsize)
-        ax.set_ylabel(flux_label,fontsize=fontsize)
-        ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
-        plot_i += 1
-        
-    
-    
-    if CC_flux is not None:
-        
-        """FOURTH PLOT"""
-        
-        
-        ax = plt.subplot(nb_plots,1,plot_i)
-        #print('new plot',plot_i)
         """CC DATA"""
-        
-        ax = custom_plot(ax,CC_wlen,CC_flux,color='k')#,label='SINFONI residuals')
-        if model_CC_wlen is not None:
-            ax = custom_plot(ax,model_CC_wlen,model_CC_flux,color='r',lw = 0.5,label='Retrieved SINFONI residuals')
-        
-        #ax.legend(fontsize=fontsize)
-        ax.set_xlabel(wvl_label,fontsize=fontsize)
-        ax.set_ylabel(CC_flux_label,fontsize=fontsize)
-        ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
+        if CC_flux is not None:
+            
+            ax = custom_plot(ax,CC_wlen,CC_flux,color='k')#,label='SINFONI residuals')
+            if model_CC_wlen is not None:
+                ax = custom_plot(ax,model_CC_wlen,model_CC_flux,color='r',lw = 0.5,label='Retrieved SINFONI residuals')
+            #ax.legend(fontsize=fontsize)
+            ax.set_xlabel(wvl_label,fontsize=fontsize)
+            ax.set_ylabel(CC_flux_label,fontsize=fontsize)
+            ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
     
+    if saving:
+        print('finished')
+        if not os.path.exists(output_file):
+            try:
+                os.mkdir(output_file)
+            except FileExistsError:
+                print('Error avoided')
+        #fig.tight_layout()
+        #fig.savefig(output_file+'/'+plot_name+'.png',dpi=300,bbox_inches = 'tight',pad_inches = 0)
+        fig.savefig(output_file+'/'+plot_name+'.pdf',dpi=300)#,bbox_inches = 'tight',pad_inches = 0)
+    return fig
     
-    print('finished')
-    if not os.path.exists(output_file):
-        try:
-            os.mkdir(output_file)
-        except FileExistsError:
-            print('Error avoided')
-    #fig.tight_layout()
-    #fig.savefig(output_file+'/'+plot_name+'.png',dpi=300,bbox_inches = 'tight',pad_inches = 0)
-    fig.savefig(output_file+'/'+plot_name+'.pdf',dpi=300)#,bbox_inches = 'tight',pad_inches = 0)
 
 def custom_errorbar(ax,x,y,xerr,yerr,reduce_resolution = True,**kwargs):
     reduce_res = False
@@ -903,6 +872,7 @@ def plot_retrieved_spectra_FM_dico(
     med_par = np.median(samples,axis=0)
     
     median_chem_params,median_temp_params,median_clouds = fix_params(config,med_par)
+    physical_params = {'log_gravity':median_temp_params['log_gravity']}
     print(median_chem_params,median_temp_params,median_clouds)
     
     if data_obj.RESinDATA():
@@ -918,6 +888,7 @@ def plot_retrieved_spectra_FM_dico(
                       chem_model_params = median_chem_params,
                       temp_model_params = median_temp_params,
                       cloud_model_params = median_clouds,
+                      physical_params=physical_params,
                       external_pt_profile = None,
                       return_profiles = False)
         
@@ -925,7 +896,8 @@ def plot_retrieved_spectra_FM_dico(
             PHOT_data_flux,PHOT_data_err,filt,filt_func,PHOT_filter_midpoint,PHOT_filter_width = data_obj.getPhot()
             photometry,wlen_temp,flux_temp = rebin_to_PHOT(wlen_ck,flux_ck,filt_func,median_temp_params['log_R'],config['DISTANCE'])
             if saving:
-                save_photometry(photometry, data_obj.PHOT_data_err, data_obj.PHOT_filter_midpoint, data_obj.PHOT_filter_width, save_dir=output_result_dir+'photometry')
+                save_photometry(photometry, data_obj.PHOT_data_err, data_obj.PHOT_filter_midpoint, 
+                                data_obj.PHOT_filter_width, save_dir=output_result_dir+'photometry')
                 save_lines([wlen_ck,flux_ck],save_dir = output_result_dir+'ck_spectrum')
         
         if data_obj.RES_data_with_ck:
@@ -933,7 +905,7 @@ def plot_retrieved_spectra_FM_dico(
                 if data_obj.RES_data_info[key][0] == 'c-k':
                     print(RES_wvl_data[key])
                     print(wlen_ck)
-                    wlen_RES[key],flux_RES[key] = rebin_to_RES(wlen_ck,flux_ck,RES_wvl_data[key],median_temps['log_R'],config['DISTANCE'])
+                    wlen_RES[key],flux_RES[key] = rebin_to_RES(wlen_ck,flux_ck,RES_wvl_data[key],median_temp_params['log_R'],config['DISTANCE'])
     
     if retrieval.forwardmodel_lbl is not None:
         wlen_lbl,flux_lbl={},{}
@@ -942,14 +914,16 @@ def plot_retrieved_spectra_FM_dico(
                       chem_model_params = median_chem_params,
                       temp_model_params = median_temp_params,
                       cloud_model_params = median_clouds,
+                      physical_params=physical_params,
                       external_pt_profile = None,
                       return_profiles = False)
             if data_obj.CCinDATA():
                 for key in CC_wvl_data.keys():
                     if retrieval.CC_to_lbl_itvls[key] == interval_key:
-                        wlen_CC[key],flux_CC[key],sgfilter[key],wlen_rebin,flux_rebin = rebin_to_CC(wlen_lbl[interval_key],flux_lbl[interval_key],CC_wvl_data[key],
-                                                                             config['WIN_LEN'],filter_method = 'only_gaussian',
-                                                                             convert = True,log_R=median_temp_params['log_R'],distance=config['DISTANCE'])
+                        wlen_CC[key],flux_CC[key],sgfilter[key],wlen_rebin,flux_rebin = rebin_to_CC(
+                            wlen_lbl[interval_key],flux_lbl[interval_key],CC_wvl_data[key],
+                            config['WIN_LEN'],filter_method = 'only_gaussian',convert =True,
+                            log_R=median_temp_params['log_R'],distance=config['DISTANCE'])
                 if saving:
                     save_spectra(wlen_CC,flux_CC,save_dir= output_result_dir + 'CC_spectrum',save_name='')
             
@@ -957,7 +931,9 @@ def plot_retrieved_spectra_FM_dico(
                 for key in RES_wvl_data.keys():
                     if retrieval.data_obj.RES_data_info[key][0] == 'lbl':
                         if retrieval.RES_to_lbl_itvls[key] == interval_key:
-                            wlen_RES[key],flux_RES[key] = rebin_to_RES(wlen_lbl[interval_key],flux_lbl[interval_key],RES_wvl_data[key],median_temps['log_R'],config['DISTANCE'])
+                            wlen_RES[key],flux_RES[key] = rebin_to_RES(
+                                wlen_lbl[interval_key],flux_lbl[interval_key],RES_wvl_data[key],
+                                median_temp_params['log_R'],config['DISTANCE'])
     if data_obj.RESinDATA():
         if saving:
             save_spectra(wlen_RES,flux_RES,save_dir= output_result_dir + 'RES_spectrum',save_name='')

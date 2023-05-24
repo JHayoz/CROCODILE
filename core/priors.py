@@ -6,8 +6,8 @@ Created on Mon Jan 25 09:40:40 2021
 """
 import matplotlib.pyplot as plt
 import numpy as np
-# prior likelihood functions
 
+# prior likelihood functions
 class Prior:
     def __init__(self,
                  RANGE,

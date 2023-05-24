@@ -13,15 +13,9 @@ from os import path
 from petitRADTRANS import radtrans as rt
 from petitRADTRANS import nat_cst as nc
 import numpy as np
-#from numpy.linalg import inv
-#from scipy.interpolate import interp1d
-#from time import time
-#from PyAstronomy.pyasl import crosscorrRV
-#import matplotlib.pyplot as plt
 from typing import Optional,Union
 from core.util import poor_mans_abunds_ck,poor_mans_abunds_lbl,convert_to_ck_names
-#from core.rebin import *
-from core.model2 import get_temperatures,evaluate_forward_model
+from core.model import get_temperatures,evaluate_forward_model
 
 class ForwardModel:
     """
