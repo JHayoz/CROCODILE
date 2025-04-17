@@ -141,7 +141,8 @@ class Retrieval:
             for interval_key in self.lbl_itvls.keys():
                 wlen_borders_lbl = self.lbl_itvls[interval_key]
                 max_wlen_stepsize = self.lbl_intervals_max_step[interval_key]
-                
+                print(max_wlen_stepsize)
+                print(wlen_borders_lbl)
                 self.forwardmodel_lbl[interval_key] = ForwardModel(
                      wlen_borders = wlen_borders_lbl,
                      max_wlen_stepsize = max_wlen_stepsize,
@@ -154,8 +155,8 @@ class Retrieval:
                      do_scat_emis = self.config['DO_SCAT_CLOUDS'],
                      chem_model = self.chem_model,
                      temp_model = self.temp_model,
-                     max_RV = 2*max(abs(self.config['RVMIN']),self.config['RVMAX']),
-                     max_winlen = int(1.5*self.config['WIN_LEN']),
+                     max_RV = 1.01*max(abs(self.config['RVMIN']),self.config['RVMAX']),
+                     max_winlen = int(1.01*self.config['WIN_LEN']),
                      include_H2 = True,
                      only_include = 'all'
                      )

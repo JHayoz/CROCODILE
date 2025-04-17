@@ -69,7 +69,7 @@ with open(OUTPUT_DIR+'NOTES.txt','w') as f:
 
 data_obj = Data(data_dir = None,
                 use_sim_files = USE_SIM_DATA,
-                PHOT_flux_format = 4,
+                PHOT_flux_format = 2,
                 PHOT_filter_dir = PHOT_DATA_FILTER_FILE,
                 PHOT_flux_dir = PHOT_DATA_FLUX_FILE,
                 CC_data_dir=CC_DATA_FILE,
@@ -77,7 +77,7 @@ data_obj = Data(data_dir = None,
                 RES_err_dir=RES_ERR_FILE,
                 verbose=True)
 
-data_obj.plot(CONFIG_DICT,OUTPUT_DIR+'data',plot_errorbars=False,inset_plot=False)
+data_obj.plot(CONFIG_DICT,OUTPUT_DIR+'data',plot_errorbars=False,inset_plot=False,save_plot=True)
 
 # Check that the retrieval does what I want it to do
 if 'CC' in USE_SIM_DATA:

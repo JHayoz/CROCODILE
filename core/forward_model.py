@@ -104,7 +104,7 @@ class ForwardModel:
         self.max_RV = max_RV
         self.max_winlen = max_winlen
         
-        if self.chem_model == 'chem_equ':
+        if 'chem_equ' in self.chem_model:
             if self.mode == 'c-k':
                 self.line_opacities = poor_mans_abunds_ck().copy()
             else:
@@ -247,7 +247,8 @@ class ForwardModel:
             cloud_model_params=cloud_model_params,
             physical_params=physical_params,
             mode=self.mode,
-            only_include=self.only_include)
+            only_include=self.only_include,
+            external_pt_profile=external_pt_profile)
         
         if self.only_include != 'all':
             self.only_include = list(dict.fromkeys(self.only_include))

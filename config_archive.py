@@ -16,11 +16,13 @@ MACHINE = 'sunray'
 #MACHINE = 'guenther38'
 
 # name of retrieval run
-#all_targets = ['ABPicb','HIP78530B','HIP79098B','ROXs42Bb','ROXs12B','2MJ0219b','HR2562B']
-NUMBER = 'v04'
-TARGET = 'AFLepb'
-VERSION = 'retrieval'
-RETRIEVAL_NAME = TARGET +'_'+ VERSION + '_' + NUMBER
+NUMBER = ''
+RETRIEVAL_NAME_INPUT = 'My_spectrum_v01'
+VERSION = 'chem_equ'
+#DATA_TYPE = 'LRSP'
+DATA_TYPE = 'CROC'
+#DATA_TYPE = 'CC'
+RETRIEVAL_NAME = RETRIEVAL_NAME_INPUT +'_'+ VERSION + '_' + DATA_TYPE
 
 # configure the paths of the input and output files
 OUTPUT_DIR = '/scratch/'
@@ -28,45 +30,53 @@ if MACHINE == 'rainbow':
     OUTPUT_DIR += 'user/'
 OUTPUT_DIR += 'jhayoz/RunningJobs/' + RETRIEVAL_NAME + '/'
 
+
 IPAGATE_ROUTE = '/home/ipa/quanz/user_accounts/jhayoz/Projects/'
-INPUT_DIR = IPAGATE_ROUTE + 'ERIS_GTO_2023/retrieval_targets/' + TARGET + '/data/'
+INPUT_DIR = IPAGATE_ROUTE + 'Quick_spectra/' + RETRIEVAL_NAME_INPUT
 
 SIM_DATA_DIR = INPUT_DIR
 CC_DATA_FILE = INPUT_DIR+'/CC_spectrum'
 RES_DATA_FILE = INPUT_DIR+'/RES_spectrum' #/SPHERE_IFS.txt'
 RES_ERR_FILE = INPUT_DIR+'/RES_error' #/SPHERE_IFS.txt'
 
-USE_SIM_DATA = ['PHOT','RES','CC']
+if DATA_TYPE == 'CROC':
+    USE_SIM_DATA = ['CC','RES','PHOT'] #['CC','RES','PHOT']
+elif DATA_TYPE == 'LRSP':
+    USE_SIM_DATA = ['RES','PHOT'] #['CC','RES','PHOT']
+else: # DATA_TYPE == 'CC':
+    USE_SIM_DATA = ['CC'] #['CC','RES','PHOT']
+print(USE_SIM_DATA)
 
 # Name of files for respective data. If don't want to use one, write None
-PHOT_DATA_FILE = INPUT_DIR
+PHOT_DATA_FILE = IPAGATE_ROUTE+ 'retrieval_input/PHOT_data'
 if 'PHOT' not in USE_SIM_DATA:
     PHOT_DATA_FILE = None
 PHOT_DATA_FILTER_FILE,PHOT_DATA_FLUX_FILE = None,None
 if 'PHOT' in USE_SIM_DATA:
-    PHOT_DATA_FILTER_FILE = PHOT_DATA_FILE + '/filter_transmission'
-    PHOT_DATA_FLUX_FILE = PHOT_DATA_FILE + '/photometry'
+    PHOT_DATA_FILTER_FILE = PHOT_DATA_FILE + '/filter'
+    PHOT_DATA_FLUX_FILE = PHOT_DATA_FILE + '/flux'
+    PHOT_DATA_FLUX_FILE = INPUT_DIR
 
 RETRIEVAL_NOTES = [
-    'First retrieval of ' + TARGET
+    'Testing CROCODILE'
                    ]
 
 # Define configuration
 MODE = 'lbl'
-LBL_SAMPLING = 5
+LBL_SAMPLING = 10
 
 USE_PRIOR = None
 USE_COV = True
-WINDOW_LENGTH_lbl = 40 # 20 # ERIS SPIFFIER
-WINDOW_LENGTH_ck = 40 # 41
+WINDOW_LENGTH_lbl = 20 # ERIS SPIFFIER
+WINDOW_LENGTH_ck = 41
 
 # Hyperparameters of retrieval
 BAYESIAN_METHOD = 'pymultinest' # pymultinest, ultranest or mcmc
 N_LIVE_POINTS = 800
 # parameters of crosscorrRV
-RVMIN = -500. # 400
-RVMAX = 500.
-DRV = 1
+RVMIN = -400. # 400
+RVMAX = 400.
+DRV = 0.5
 
 # diagnostic parameters
 WRITE_THRESHOLD = 50
@@ -79,12 +89,12 @@ PLOTTING_THRESHOLD = 10
 # Define forward model
 
 # Chemical model
-CHEM_MODEL = 'free' # 'free' or 'chem_equ'
+CHEM_MODEL = 'chem_equ' # 'free' or 'chem_equ'
 #ABUNDANCES = ['H2O_main_iso','CO_main_iso','CH4_main_iso']
 if CHEM_MODEL == 'free':
-    # ABUNDANCES = ['H2O_main_iso','CH4_main_iso', 'CO_main_iso', 'CO2_main_iso','H2S_main_iso','FeH_main_iso','TiO_all_iso','K','VO']
-    #ABUNDANCES = ['H2O_main_iso', 'CO_main_iso']
-    ABUNDANCES = [ 'H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','HCN_main_iso','H2S_main_iso','FeH_main_iso','TiO_all_iso','VO']
+    #ABUNDANCES = ['H2O_main_iso','CH4_main_iso', 'CO_main_iso', 'CO2_main_iso','H2S_main_iso','FeH_main_iso','TiO_all_iso','K','VO']
+    ABUNDANCES = ['H2O_main_iso', 'CO_main_iso']
+    #ABUNDANCES = [ 'H2O_main_iso','CO_main_iso','CH4_main_iso','CO2_main_iso','HCN_main_iso','FeH_main_iso','H2S_main_iso','NH3_main_iso','TiO_all_iso','VO']
 if CHEM_MODEL == 'chem_equ':
     ABUNDANCES = ['C/O','FeHs']
 UNSEARCHED_ABUNDS = []
@@ -92,7 +102,7 @@ UNSEARCHED_ABUNDS = []
 # P-T model
 TEMP_MODEL = 'guillot'
 ALL_TEMPS = ['log_gamma','t_int','t_equ','log_gravity','log_kappa_IR','R','P0']
-TEMP_PARAMS = [ 'log_gamma','t_int','t_equ','log_gravity','log_kappa_IR','R'
+TEMP_PARAMS = ['t_equ','log_gravity'#,'R'
                ]#Pick from ALL_TEMPS, and order is relevant: must be like in ALL_TEMPS
 UNSEARCHED_TEMPS = [item for item in ALL_TEMPS if not(item in TEMP_PARAMS)]
 
@@ -133,7 +143,7 @@ if CHEM_MODEL == 'chem_equ':
 # enter reference values here (if data was simulated, their true values)
 
 pc_to_m = 3.086*1e16
-distance_pc = 26.843# 40.245 #33.928 # 146.447 # 154.412 # 40.245
+distance_pc = 19.7538
 DISTANCE = distance_pc*pc_to_m
 
 RADIUS_J = 69911*1000
@@ -146,18 +156,18 @@ DATA_PARAMS['TEMP_MODEL'] = 'guillot'
 
 DATA_PARAMS['log_gamma']      = log10(0.4)
 DATA_PARAMS['t_int']          = 200.
-DATA_PARAMS['t_equ']          = 800
+DATA_PARAMS['t_equ']          = 1742
 DATA_PARAMS['log_kappa_IR']   = log10(0.01)
-DATA_PARAMS['R']          = 1.27
-DATA_PARAMS['log_gravity']    = 3.7
+DATA_PARAMS['R']          = 1.36
+DATA_PARAMS['log_gravity']    = 4.35
 DATA_PARAMS['P0']             = 2
 
 # Chemical model
 DATA_PARAMS['CHEM_MODEL'] = 'free'
 #DATA_PARAMS['C/O'] = 0.3
 #DATA_PARAMS['FeHs'] = 0.66
-#DATA_PARAMS['H2O_main_iso']   = -1.8
-#DATA_PARAMS['CO_main_iso']    = -1.6
+DATA_PARAMS['H2O_main_iso']   = -1.8
+DATA_PARAMS['CO_main_iso']    = -1.6
 
 # Cloud model
 #DATA_PARAMS['log_kzz'] = 9.8
@@ -180,8 +190,7 @@ RANGE['t_equ']          = [0,5000]
 RANGE['log_gravity']    = [1,8] #[-2,10]
 RANGE['log_kappa_IR']   = [-2,2]
 #RANGE['log_R']          = [DATA_PARAMS['log_R']-0.5,DATA_PARAMS['log_R']+0.5]
-#RANGE['R']          = [0.01,20]
-RANGE['R']          = [DATA_PARAMS['R']-0.5,DATA_PARAMS['R']+0.5]
+RANGE['R']          = [0.01,20]
 RANGE['P0']             = [-2,2]
 RANGE['log_Pcloud']     = [-3,1.49]
 RANGE['abundances']     = [-10,0]
@@ -200,11 +209,11 @@ LOG_PRIORS['log_gamma']      = lambda x: a_b_range(x,RANGE['log_gamma'])
 LOG_PRIORS['t_int']          = lambda x: a_b_range(x,RANGE['t_int'])
 LOG_PRIORS['t_equ']          = lambda x: a_b_range(x,RANGE['t_equ'])
 #LOG_PRIORS['t_equ']          = lambda x: log_gauss(x,DATA_PARAMS['t_equ'],60) # Gaussian prior using prior analyses
-#LOG_PRIORS['log_gravity']    = lambda x: a_b_range(x,RANGE['log_gravity'])
-LOG_PRIORS['log_gravity']          = lambda x: log_gauss(x,DATA_PARAMS['log_gravity'],0.5) # Gaussian prior using prior analyses
+LOG_PRIORS['log_gravity']    = lambda x: a_b_range(x,RANGE['log_gravity'])
+#LOG_PRIORS['log_gravity']          = lambda x: log_gauss(x,DATA_PARAMS['log_gravity'],0.5) # Gaussian prior using prior analyses
 LOG_PRIORS['log_kappa_IR']   = lambda x: a_b_range(x,RANGE['log_kappa_IR'])
-#LOG_PRIORS['R']          = lambda x: a_b_range(x,RANGE['R'])
-LOG_PRIORS['R']          = lambda x: log_gauss(x,DATA_PARAMS['R'],0.2)
+LOG_PRIORS['R']          = lambda x: a_b_range(x,RANGE['R'])
+#LOG_PRIORS['R']          = lambda x: log_gauss(x,DATA_PARAMS['R'],0.5)
 LOG_PRIORS['P0']             = lambda x: a_b_range(x,RANGE['P0'])
 LOG_PRIORS['log_Pcloud']     = lambda x: a_b_range(x,RANGE['log_Pcloud'])
 for name in ABUNDANCES:
@@ -225,11 +234,11 @@ CUBE_PRIORS['log_gamma']      = lambda x: uniform_prior(x,RANGE['log_gamma'])
 CUBE_PRIORS['t_int']          = lambda x: uniform_prior(x,RANGE['t_int'])
 CUBE_PRIORS['t_equ']          = lambda x: uniform_prior(x,RANGE['t_equ'])
 #CUBE_PRIORS['t_equ']          = lambda x: gaussian_prior(x,DATA_PARAMS['t_equ'],60)
-#CUBE_PRIORS['log_gravity']    = lambda x: uniform_prior(x,RANGE['log_gravity'])
-CUBE_PRIORS['log_gravity']          = lambda x: gaussian_prior(x,DATA_PARAMS['log_gravity'],0.5)
+CUBE_PRIORS['log_gravity']    = lambda x: uniform_prior(x,RANGE['log_gravity'])
+#CUBE_PRIORS['log_gravity']          = lambda x: gaussian_prior(x,DATA_PARAMS['log_gravity'],0.5)
 CUBE_PRIORS['log_kappa_IR']   = lambda x: uniform_prior(x,RANGE['log_kappa_IR'])
-#CUBE_PRIORS['R']          = lambda x: uniform_prior(x,RANGE['R'])
-CUBE_PRIORS['R']          = lambda x: gaussian_prior(x,DATA_PARAMS['R'],0.2)
+CUBE_PRIORS['R']          = lambda x: uniform_prior(x,RANGE['R'])
+#CUBE_PRIORS['R']          = lambda x: gaussian_prior(x,DATA_PARAMS['R'],0.5)
 CUBE_PRIORS['P0']             = lambda x: uniform_prior(x,RANGE['P0'])
 CUBE_PRIORS['log_Pcloud']     = lambda x: uniform_prior(x,RANGE['log_Pcloud'])
 for name in ABUNDANCES:

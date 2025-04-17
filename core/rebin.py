@@ -114,7 +114,7 @@ def rebin_to_CC(wlen,flux,wlen_data,win_len,method='linear',filter_method = 'onl
         else:
             wlen_removed,flux_removed,calc_filter = only_gaussian_filter(wlen_rebin,flux_rebin,sigma=win_len,wlen_after=wlen_data)
     else:
-        print('Using median-gaussian filter')
+        # print('Using median-gaussian filter')
         # if filter_method == 'median_filter'
         if method == 'linear':
             wlen_removed,flux_removed,calc_filter = median_gaussian_filter(wlen_rebin,flux_rebin,win_len,nb_sigma=nb_sigma,wlen_after=None)
@@ -239,10 +239,10 @@ def median_gaussian_filter(wlen,flux,win_len=64,nb_sigma=16,wlen_after=None):
     t0 = time()
     med_filter = median_filter(flux,size = win_len, mode = 'nearest')
     t1=time()
-    print('Median filter',t1-t0)
+    # print('Median filter',t1-t0)
     smooth_filter = gaussian_filter(med_filter,sigma = nb_sigma, order=0, mode = 'nearest')
     t2=time()
-    print('Gaussian filter',t2-t1)
+    # print('Gaussian filter',t2-t1)
     nb_bins_ignored = int(win_len/2)
     if wlen_after is not None:
         wvl_indices = [i for i in range(len(wlen)) if wlen[i] >= wlen_after[0] and wlen[i] <= wlen_after[-1]]

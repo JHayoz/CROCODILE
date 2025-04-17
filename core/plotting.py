@@ -51,7 +51,7 @@ def plot_data(config,
               title = 'Spectrum',
               fontsize=15,
               plot_errorbars=True,
-              saving=True):
+              save_plot=True):
     # define labels
     wvl_label = 'Wavelength [$\mu$m]'
     filter_label = 'Filter trsm.'
@@ -76,6 +76,15 @@ def plot_data(config,
     
     nb_plots = int(plot_filter) + 2*int(plot_spectrum) + int(plot_CC_spectrum)
     print('Number of plots:',nb_plots)
+    # determine the xlims
+    xmin = 10
+    xmax = 0
+    if plot_filter:
+        xmin = np.min(list(PHOT_midpoint.values()))-0.2
+        xmax = np.max(list(PHOT_midpoint.values()))+0.2
+    if RES_wlen:
+        xmin = np.min([xmin,min([min(wlen) for wlen in list(RES_wlen.values())])])
+        xmax = np.max([xmax,max([max(wlen) for wlen in list(RES_wlen.values())])])
     fig = plt.figure(figsize=(10,2*nb_plots))
     plot_i=1
     """FILTER TRANSMISSION FUNCTION"""
@@ -98,12 +107,12 @@ def plot_data(config,
             x_max = 0
             for instr in PHOT_filter.keys():
                 ax.plot(PHOT_filter[instr][0],PHOT_filter[instr][1],color=rgba[instr])
-                x_min = min(x_min,PHOT_filter[instr][0][0])
-                x_max = max(x_max,PHOT_filter[instr][0][-1])
+                # x_min = min(x_min,PHOT_filter[instr][0][0])
+                # x_max = max(x_max,PHOT_filter[instr][0][-1])
             ax.set_xlabel(wvl_label,fontsize=fontsize)
             ax.set_ylabel(filter_label,fontsize=fontsize)
             ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
-            ax.set_xlim((x_min-0.2,x_max+0.2))
+            ax.set_xlim((xmin,xmax))
         plot_i += 1
     
     """Continuum-included spectra"""
@@ -145,7 +154,7 @@ def plot_data(config,
                 ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,fmt='|',color='b',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
 
             if RES_wlen is not None:
-                ax = custom_plot(ax,RES_wlen,RES_flux,color='b',alpha=0.5,marker='+',label='GRAVITY spectrum',zorder=1)
+                ax = custom_plot(ax,RES_wlen,RES_flux,alpha=0.5,marker='+',label='GRAVITY spectrum',zorder=1)
                 if model_RES_wlen is not None:
                     print('Plot model')
                     ax = custom_plot(ax,model_RES_wlen,model_RES_flux,color='r',label='Retrieved GRAVITY spectrum',zorder=1)
@@ -172,7 +181,7 @@ def plot_data(config,
                 ax.set_xlabel(wvl_label,fontsize=fontsize)
                 ax.set_ylabel(flux_label,fontsize=fontsize)
                 ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
-                ax.set_xlim((x_min-0.2,x_max+0.2))
+                ax.set_xlim((xmin,xmax))
 
 
         if RES_wlen is not None:
@@ -198,14 +207,14 @@ def plot_data(config,
 
             #ax2.legend(fontsize=fontsize)
             ax.set_xlabel(wvl_label,fontsize=fontsize-4)
-            ax.set_ylabel('GRAVITY',fontsize=fontsize-4)
+            ax.set_ylabel(r'Spectral flux density [Wm$^{-2}\mu$m$^{-1}$]',fontsize=fontsize-4)
             ax.tick_params(axis='both',which='both',labelsize=fontsize-4)
             # remove following lines because something keeps crashing
             if isinstance(RES_wlen,dict):
-                ax.set_xlim((min([RES_wlen[key][0] for key in RES_wlen.keys()]),max([RES_wlen[key][-1] for key in RES_wlen.keys()])))
+                ax.set_xlim((xmin,xmax))
                 ax.set_ylim((min([min(RES_flux[key])*0.975 for key in RES_wlen.keys()]),max([max(RES_flux[key])*1.025 for key in RES_wlen.keys()])))
             else:
-                ax.set_xlim((RES_wlen[0],RES_wlen[-1]))
+                ax.set_xlim((xmin,xmax))
                 ax.set_ylim((min(RES_flux)*0.9,max(RES_flux)*1.1))
 
 
@@ -242,7 +251,7 @@ def plot_data(config,
             ax.set_ylabel(CC_flux_label,fontsize=fontsize)
             ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
     
-    if saving:
+    if save_plot:
         print('finished')
         if not os.path.exists(output_file):
             try:
@@ -330,7 +339,8 @@ def plot_SNR(config,
              title='C-C function',
              ax = None,
              fontsize=15,
-             printing=False):
+             printing=False,
+             save_plot=True):
     
     if not isinstance(wlen_CC,dict):
         wlen_CC,flux_CC = {'data':wlen_CC},{'data':flux_CC}
@@ -362,9 +372,7 @@ def plot_SNR(config,
     
     SNR,std_CC,RV_max_i,left_bord,right_bord,noisy_CC_function = calc_SNR(dRV,CC)
     
-    saving = False
     if ax is None:
-        saving = True
         fig = plt.figure()
         ax = fig.gca()
     ax.plot(dRV,CC)
@@ -382,7 +390,7 @@ def plot_SNR(config,
     if printing:
         save_spectrum(dRV,CC,save_dir= output_file,save_name='/CCF')
     
-    if saving:
+    if save_plot:
         fig.savefig(output_file+'CC_function.png',dpi=300)
     else:
         return ax
@@ -508,7 +516,8 @@ def plot_mol_abunds(config,
                     title = 'Retrieved molecular profiles',
                     output_file = '',
                     ax = None,
-                    fontsize = 15):
+                    fontsize = 15,
+                    save_plot=True):
     # either retrieval was in free or chem_equ model, and same for data, and it's possible that data is unknown
     
     median_params = np.median(samples,axis=0)
@@ -533,9 +542,8 @@ def plot_mol_abunds(config,
         else:
             for i,mol_name in enumerate(poor_mans_abunds_ck()):
                 rgba[mol_name] = cmap(i/len(poor_mans_abunds_ck()))
-    saving = False
+    
     if ax is None:
-        saving = True
         fig = plt.figure()
         ax = fig.gca()
     fontsize=fontsize
@@ -614,7 +622,7 @@ def plot_mol_abunds(config,
     if title is not None:
         ax.set_title(title,fontsize=fontsize)
     ax.legend(fontsize=fontsize,loc='lower right')
-    if saving:
+    if save_plot:
         fig.savefig(output_file+'retrieved_abunds.png',dpi=300)
     else:
         return ax
@@ -720,11 +728,11 @@ def plot_retrieved_spectra_FM(
         forwardmodel_ck,
         title = 'Retrieval',
         show_random = None,
-        saving = True,
+        save_plot = True,
         output_results = False):
     
     output_result_dir = output_file + 'retrieved_spectrum/'
-    if saving:
+    if save_plot:
         if not os.path.exists(output_result_dir):
             try:
                 os.mkdir(output_result_dir)
@@ -766,7 +774,7 @@ def plot_retrieved_spectra_FM(
                                                                          config['WIN_LEN'],filter_method = 'only_gaussian',
                                                                          convert = config['CONVERT_SINFONI_UNITS'],log_R=median_temps['log_R'],distance=config['DISTANCE'])
             
-            if saving:
+            if save_plot:
                 save_spectra(wlen_CC,flux_CC,save_dir= output_result_dir + 'CC_spectrum',save_name='')
             
         if data_obj.RESinDATA():
@@ -781,7 +789,7 @@ def plot_retrieved_spectra_FM(
             for key in RES_wvl_data.keys():
                 wlen_RES[key],flux_RES[key] = rebin_to_RES(wlen_lbl,flux_lbl,RES_wvl_data[key],median_temps['log_R'],config['DISTANCE'])
             
-            if saving:
+            if save_plot:
                 save_spectra(wlen_RES,flux_RES,save_dir= output_result_dir + 'RES_spectrum',save_name='')
     
     if forwardmodel_ck is not None:
@@ -794,7 +802,7 @@ def plot_retrieved_spectra_FM(
         if data_obj.PHOTinDATA():
             PHOT_data_flux,PHOT_data_err,filt,filt_func,PHOT_filter_midpoint,PHOT_filter_width = data_obj.getPhot()
             photometry,wlen_ck,flux_ck = rebin_to_PHOT(wlen_ck,flux_ck,filt_func,median_temps['log_R'],config['DISTANCE'])
-            if saving:
+            if save_plot:
                 save_photometry(photometry,data_obj.PHOT_data_err,data_obj.PHOT_filter_midpoint,data_obj.PHOT_filter_width,save_dir=output_result_dir+'photometry')
                 save_lines([wlen_ck,flux_ck],save_dir = output_result_dir+'ck_spectrum')
             
@@ -830,14 +838,14 @@ def plot_retrieved_spectra_FM_dico(
         output_file = '',
         title = 'Retrieved spectrum',
         show_random = None,
-        saving = True,
+        save_plot = True,
         output_results = False):
     
     data_obj = retrieval.data_obj
     config = retrieval.config.copy()
     print('in plotting module',config['TEMPS'])
     output_result_dir = output_file + 'retrieved_spectrum/'
-    if saving:
+    if save_plot:
         if not os.path.exists(output_result_dir):
             try:
                 os.mkdir(output_result_dir)
@@ -895,7 +903,7 @@ def plot_retrieved_spectra_FM_dico(
         if data_obj.PHOTinDATA():
             PHOT_data_flux,PHOT_data_err,filt,filt_func,PHOT_filter_midpoint,PHOT_filter_width = data_obj.getPhot()
             photometry,wlen_temp,flux_temp = rebin_to_PHOT(wlen_ck,flux_ck,filt_func,median_temp_params['log_R'],config['DISTANCE'])
-            if saving:
+            if save_plot:
                 save_photometry(photometry, data_obj.PHOT_data_err, data_obj.PHOT_filter_midpoint, 
                                 data_obj.PHOT_filter_width, save_dir=output_result_dir+'photometry')
                 save_lines([wlen_ck,flux_ck],save_dir = output_result_dir+'ck_spectrum')
@@ -924,7 +932,7 @@ def plot_retrieved_spectra_FM_dico(
                             wlen_lbl[interval_key],flux_lbl[interval_key],CC_wvl_data[key],
                             config['WIN_LEN'],filter_method = 'only_gaussian',convert =True,
                             log_R=median_temp_params['log_R'],distance=config['DISTANCE'])
-                if saving:
+                if save_plot:
                     save_spectra(wlen_CC,flux_CC,save_dir= output_result_dir + 'CC_spectrum',save_name='')
             
             if data_obj.RESinDATA():
@@ -935,7 +943,7 @@ def plot_retrieved_spectra_FM_dico(
                                 wlen_lbl[interval_key],flux_lbl[interval_key],RES_wvl_data[key],
                                 median_temp_params['log_R'],config['DISTANCE'])
     if data_obj.RESinDATA():
-        if saving:
+        if save_plot:
             save_spectra(wlen_RES,flux_RES,save_dir= output_result_dir + 'RES_spectrum',save_name='')
     
     plot_data(
@@ -958,7 +966,8 @@ def plot_retrieved_spectra_FM_dico(
             PHOT_sim_flux = flux_ck,
             model_PHOT_flux = photometry,
             output_file = output_file,
-            plot_name='plot_retrieved_spectrum')
+            plot_name='plot_retrieved_spectrum',
+            save_plot=save_plot)
     
     if output_results:
         return wlen_CC,flux_CC,wlen_RES,flux_RES,photometry
@@ -977,7 +986,8 @@ def plot_CO_ratio(
                 label='C/O$=$',
                 include_quantiles = True,
                 title='C/O ratio',
-                ax = None):
+                ax = None,
+                save_plot = True):
     
     CO_ratio_samples = calc_CO_ratio(samples, 
                                  params_names = config['PARAMS_NAMES'], 
@@ -985,9 +995,8 @@ def plot_CO_ratio(
                                  percent_considered = percent_considered,
                                  abundances_considered = abundances_considered,
                                  method = 'VMRs')
-    saving = False
+    
     if ax is None:
-        saving = True
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     quantiles = np.quantile(CO_ratio_samples,q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2])
@@ -1002,7 +1011,7 @@ def plot_CO_ratio(
     ax.legend(fontsize=fontsize)
     if title is not None:
         ax.set_title(title,fontsize=fontsize)
-    if saving:
+    if save_plot:
         fig.savefig(output_file + 'CO_ratio.png',dpi=300)
     else:
         return ax
@@ -1020,7 +1029,8 @@ def plot_FeH_ratio(
                 label='[Fe/H]$=$',
                 include_quantiles = True,
                 title='[Fe/H]',
-                ax = None):
+                ax = None,
+                save_plot=True):
     
     FeH_ratio_samples = calc_FeH_ratio_from_samples(
                                 samples, 
@@ -1028,9 +1038,8 @@ def plot_FeH_ratio(
                                 abundances = config['ABUNDANCES'], 
                                 percent_considered = percent_considered,
                                 abundances_considered = abundances_considered)
-    saving = False
+    
     if ax is None:
-        saving = True
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     quantiles = np.quantile(FeH_ratio_samples,q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2])
@@ -1045,7 +1054,7 @@ def plot_FeH_ratio(
     ax.legend(fontsize=fontsize)
     if title is not None:
         ax.set_title(title,fontsize=fontsize)
-    if saving:
+    if save_plot:
         fig.savefig(output_file + 'FeH_ratio.png',dpi=300)
     else:
         return ax
@@ -1194,11 +1203,10 @@ def plot_retrieved_temperature_profile(
         plot_data = True,
         plot_label=True,
         title='Thermal profile',
-        ax = None):
+        ax = None,
+        save_plot = True):
     print('PLOTTING THERMAL PROFILE')
-    saving = False
     if ax is None:
-        saving = True
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     
@@ -1271,7 +1279,7 @@ def plot_retrieved_temperature_profile(
         ax.legend(fontsize=fontsize)
     if title is not None:
         ax.set_title(title,fontsize=fontsize)
-    if saving:
+    if save_plot:
         fig.savefig(output_file + 'temperature_plot.png',dpi=300)
     else:
         return ax
@@ -1291,11 +1299,10 @@ def plot_retrieved_spectra_ck(
         plot_label=True,
         scale_factor=1.,
         ax = None,
-        zorder=0):
+        zorder=0,
+        save_plot=True):
     
-    saving = False
     if ax is None:
-        saving = True
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     
@@ -1362,7 +1369,7 @@ def plot_retrieved_spectra_ck(
         ax.legend(fontsize=fontsize)
     if title is not None:
         ax.set_title(title,fontsize=fontsize)
-    if saving:
+    if save_plot:
         fig.savefig(output_file + 'retrieved_spectra_ck.png',dpi=300)
     else:
         return ax
@@ -1383,11 +1390,11 @@ def plot_retrieved_abunds(
         add_legend = False,
         errorbar_color = None,
         plot_marker = False,
-        ax = None):
+        plot_data = True,
+        ax = None,
+        save_plot=True):
     print('PLOTTING ABUNDANCE PROFILES')
-    saving = False
     if ax is None:
-        saving = True
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     
@@ -1476,15 +1483,15 @@ def plot_retrieved_abunds(
     for param in common_params:
         colors[param] = cmap[common_params.index(param)]
             
-    
-    for param in data_curves.keys():
-        if param in common_params:
-            ax.plot(data_curves[param],pressures,color=colors[param],lw=lw,label=nice_name(param),zorder=0)
-        """
-        else:
-            ax.plot(data_curves[param],pressures,lw=lw*2,alpha=0.3)
-            ax.text(data_curves[param][-1],pressures[-1],nice_name(param))
-        """
+    if plot_data:
+        for param in data_curves.keys():
+            if param in common_params:
+                ax.plot(data_curves[param],pressures,color=colors[param],lw=lw,label=nice_name(param),zorder=0)
+            """
+            else:
+                ax.plot(data_curves[param],pressures,lw=lw*2,alpha=0.3)
+                ax.text(data_curves[param][-1],pressures[-1],nice_name(param))
+            """
     
     if pressure_distr is None:
         for param in ab_metals_params:
@@ -1557,7 +1564,7 @@ def plot_retrieved_abunds(
         ax.legend(fontsize=fontsize)
     if title is not None:
         ax.set_title(title,fontsize=fontsize)
-    if saving:
+    if save_plot:
         fig.savefig(output_dir + 'abundances_plot.png',dpi=300)
         return ax,colors,model_line
     else:
@@ -1574,12 +1581,11 @@ def plot_retrieved_fluxes(
         lw = 0.8,
         figsize=(8,12),
         title='Retrieved spectrum',
-        ax = None
+        ax = None,
+        save_plot=True
         ):
     
-    saving = False
     if ax is None:
-        saving = True
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     else:
@@ -1710,7 +1716,7 @@ def plot_retrieved_fluxes(
     
     fig.tight_layout()
     
-    if saving:
+    if save_plot:
         fig.savefig(output_dir + 'retrieved_fluxes.png',dpi=600)
     else:
         return ax
@@ -1730,11 +1736,10 @@ def plot_retrieved_temp_abunds_em_contr(
         fontsize = 12,
         lw = 0.8,
         figsize=(12,8),
-        ax = None
+        ax = None,
+        save_plot=True
         ):
-    saving = False
     if ax is None:
-        saving = True
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     else:
@@ -1852,7 +1857,7 @@ def plot_retrieved_temp_abunds_em_contr(
         ax3.yaxis.set_label_position("right")
     fig.tight_layout()
     fig.subplots_adjust(hspace=0.1,wspace=0.15)
-    if saving:
+    if save_plot:
         fig.savefig(output_dir + 'temps_abundances_contr_em_'+which_em[:4]+'_ABUND' + which_abund[:4] + '_' + which_included[:4] + '_plot.png',dpi=600,bbox_inches = 'tight',pad_inches = 0)
         fig.savefig(output_dir + 'temps_abundances_contr_em_'+which_em[:4]+'_ABUND' + which_abund[:4] + '_' + which_included[:4] + '_plot.pdf',dpi=600,bbox_inches = 'tight',pad_inches = 0)
     else:

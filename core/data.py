@@ -336,7 +336,7 @@ class Data:
              title = 'Spectrum',
              inset_plot=True,
              plot_errorbars=True,
-             saving=True):
+             save_plot=True):
         
         fig = plot_data(config,
                   CC_wlen       = self.CC_data_wlen,
@@ -356,7 +356,7 @@ class Data:
                   title         = title,
                   plot_name     = plot_name,
                   plot_errorbars= plot_errorbars,
-                  saving=saving)
+                  save_plot=save_plot)
         return fig
 
 

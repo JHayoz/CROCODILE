@@ -168,6 +168,12 @@ def get_abundances(
     elif chem_model=='chem_equ':
         print('Evaluating chemical equilibrium model')
         pressures,abundances = chem_equ_model(chem_model_params,pressures,temperatures,mode=mode)
+    elif chem_model=='modified_chem_equ':
+        pressures,abundances = chem_equ_model(chem_model_params,pressures,temperatures,mode=mode)
+        for param in chem_model_params.keys():
+            if param in abundances.keys():
+                print('Modifying %s abundance' % param)
+                abundances[param] = np.ones_like(pressures)*1e1**chem_model_params[name]
     else:
         pressures,abundances =None,None
     return pressures,abundances
@@ -210,7 +216,8 @@ def evaluate_forward_model(
         cloud_model_params:dict,
         physical_params:dict,
         mode:str,
-        only_include:list
+        only_include:list,
+        external_pt_profile:list=None
     ):
     """
     Calculates the spectrum from the models and model parameters given.
@@ -235,7 +242,11 @@ def evaluate_forward_model(
     abundances:dict
         dictionary containing the abundance of each molecule/opacity at each atmospheric layer.
     """
-    pressures,temperatures = get_temperatures(temp_model,temp_model_params)
+    if not external_pt_profile is None:
+        pressures,temperatures = external_pt_profile
+    else:
+        pressures,temperatures = get_temperatures(temp_model,temp_model_params)
+    
     pressures,abundances = get_abundances(chem_model,chem_model_params,pressures,temperatures,mode=mode)
     
     if only_include != 'all':

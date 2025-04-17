@@ -34,11 +34,14 @@ mupper = 3e5
 SQRT2 = np.sqrt(2.)
 SQRT2PI = np.sqrt(2*np.pi)
 def open_spectrum(file_dir):
-    with open(file_dir,'r') as f:
-        datareader = csv.reader(f,quoting=csv.QUOTE_NONNUMERIC)
-        data = np.array([row for row in datareader])
-        if np.shape(data)[0] == 1 and len(np.shape(data)) > 1:
-            data = data[0]
+    try:
+        with open(file_dir,'r') as f:
+            datareader = csv.reader(f,quoting=csv.QUOTE_NONNUMERIC)
+            data = np.array([row for row in datareader])
+            if np.shape(data)[0] == 1 and len(np.shape(data)) > 1:
+                data = data[0]
+    except ValueError:
+        data = np.loadtxt(file_dir)
     return data
 
 def open_spectra(dir_path):
@@ -408,6 +411,7 @@ def get_MMWs(mol):
     MMWs['CO'] = 28.
     MMWs['CO_all_iso'] = 28.
     MMWs['CO_main_iso'] = 28.
+    MMWs['CO_36'] = 29.
     MMWs['Na'] = 23.
     MMWs['K'] = 39.
     MMWs['NH3'] = 17.
