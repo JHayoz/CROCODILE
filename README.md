@@ -25,4 +25,4 @@ To tell CROCODILE what the names of the opacities are, one needs to modify the f
 
 
 ### Citations
-This package was developed by Jean Hayoz from ETH Zürich. Please cite Hayoz et al. 2023 if you are using CROCODILE for your scientific analyses.
+This package was developed by Jean Hayoz from ETH Zürich. Please cite Hayoz et al. 2023 ([https://ui.adsabs.harvard.edu/link_gateway/2023arXiv230910587H/doi:10.48550/arXiv.2309.10587](https://arxiv.org/abs/2309.10587)) if you are using CROCODILE for your scientific analyses.
