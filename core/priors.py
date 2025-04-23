@@ -6,20 +6,25 @@ Created on Mon Jan 25 09:40:40 2021
 """
 import matplotlib.pyplot as plt
 import numpy as np
+from core.read import read_forward_model_from_config
 
 # prior likelihood functions
 class Prior:
     def __init__(self,
-                 RANGE,
-                 log_priors,
-                 log_cube_priors
+                 config_file
                  ):
-        self.RANGE = RANGE
-        self.log_priors = log_priors
-        self.log_cube_priors = log_cube_priors
+        self.RANGE = {}
+        self.log_priors = {}
+        self.log_cube_priors = {}
+
+        self.read_prior_config(config_file)
+
+        self.params_names = self.getParams()
+        return
+    
     
     def getParams(self):
-        return self.RANGE.keys()
+        return list(self.RANGE.keys())
     
     def getRANGE(self):
         return self.RANGE
@@ -28,17 +33,23 @@ class Prior:
     def getLogCubePriors(self):
         return self.log_cube_priors
     
-    def plot(self,config,output_dir=''):
-        nb_params = len(config['PARAMS_NAMES'])
+    def plot(self,output_dir='',save_plot=True):
+        nb_params=len(self.RANGE.keys())
         fig,ax = plt.subplots(nrows = 1,ncols=nb_params,figsize=(nb_params*3,3))
-        for col_i,name in enumerate(config['PARAMS_NAMES']):
-            if name in config['ABUNDANCES'] or name in config['CLOUDS_ABUNDS']:
-                positions = np.linspace(self.RANGE['abundances'][0],self.RANGE['abundances'][1],1000)
-            else:
-                positions = np.linspace(self.RANGE[name][0],self.RANGE[name][1],1000)
-            ax[col_i].plot(positions,[self.log_priors[name](x) for x in positions])
-            if name in config['DATA_PARAMS'].keys():
-                ax[col_i].axvline(config['DATA_PARAMS'][name],color='r',label='True: {numb:.2f}'.format(numb=config['DATA_PARAMS'][name]))
+        for col_i,name in enumerate(self.RANGE.keys()):
+            x_arr = np.linspace(self.RANGE[name][0],self.RANGE[name][1],100)
+            ax[col_i].plot(x_arr,[self.log_priors[name](x) for x in x_arr])
             ax[col_i].set_title(name)
-        fig.savefig(output_dir + 'priors.png',dpi=300)
+        plt.tight_layout()
+        if save_plot:
+            fig.savefig(output_dir + 'priors.png',dpi=300)
+    
+    def read_prior_config(self,config_file):
         
+        RANGE,LOG_PRIORS,CUBE_PRIORS = read_forward_model_from_config(config_file,params=[],params_names=[],extract_param=False)
+        
+        self.RANGE = RANGE
+        self.log_priors = LOG_PRIORS
+        self.log_cube_priors = CUBE_PRIORS
+        
+        return 

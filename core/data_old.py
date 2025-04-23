@@ -1,29 +1,32 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr 22 17:07 2025
+Created on Mon Jun 21 09:44:19 2021
 
-@author: Jean Hayoz
+@author: jeanh
 """
+
 from scipy.interpolate import interp1d
 import numpy as np
 from numpy.linalg import inv
-import pandas as pd
-from glob import glob
-import json
-from pathlib import Path
 import os
 from itertools import combinations
 from .plotting import plot_data
 from .util import *
 
 class Data:
-    def __init__(
-        self,
-        photometry_file = 'photometry.csv',
-        spectroscopy_files = {},
-        contrem_spectroscopy_files = {},
-        photometry_filter_dir = ''):
-
+    def __init__(self,
+                 data_dir = None,
+                 use_sim_files = [],
+                 PHOT_flux_format = 4,
+                 PHOT_filter_dir = None,
+                 PHOT_flux_dir = None,
+                 CC_data_dir=None,
+                 RES_data_dir=None,
+                 RES_err_dir=None,
+                 quick_load = False,
+                 verbose=False
+                 ):
+        
         # continuum-removed spectrum, aka used with cross-correlation spectroscopy
         self.CC_data_wlen = {}
         self.CC_data_flux = {}
@@ -46,81 +49,120 @@ class Data:
         self.RES_inv_cov = {}
         self.RES_data_flux_err = {}
         
-        photometry_included = not photometry_file is None
-        spectroscopy_included = len(spectroscopy_files) > 0
-        contrem_spectroscopy_included = len(contrem_spectroscopy_files) > 0
+        if data_dir is not None:
+            for files in os.listdir(data_dir):
+                if 'spectrum' in files:
+                    if 'RES' in files and 'RES' in use_sim_files and not 'cksim' in files:
+                        RES_data_dir = data_dir+'/'+files
+                    if 'CC' in files and 'CC' in use_sim_files:
+                        CC_data_dir = data_dir+'/'+files
+                    if 'cksim' in files and 'PHOT' in use_sim_files:
+                        print('importing spectrum used for simulated photometry')
+                        self.PHOT_sim_spectrum_wlen,self.PHOT_sim_spectrum_flux = open_spectrum(data_dir+'/'+files)
+                if 'cov' in files and 'RES' in use_sim_files:
+                    RES_err_dir = data_dir+'/'+files
         
-        if photometry_included:
-            if photometry_file[-4:] != '.csv':
-                print('WARNING: only csv files accepted for the moment.')
+        if 'PHOT' in use_sim_files and PHOT_flux_dir is not None:
+            if verbose:
+                print('IMPORTING PHOTOMETRY')
+            self.PHOT_data_filter = open_filter_dir(file_dir=PHOT_filter_dir,true_dir = True)
+            for instr in self.PHOT_data_filter.keys():
+                self.PHOT_filter_function[instr] = interp1d(self.PHOT_data_filter[instr][0],self.PHOT_data_filter[instr][1],bounds_error=False,fill_value=0.)
+                if PHOT_flux_format == 4:
+                    self.PHOT_data_flux[instr],self.PHOT_data_err[instr],self.PHOT_filter_midpoint[instr],self.PHOT_filter_width[instr] = open_photometry(PHOT_flux_dir+'/'+instr + '.txt')
+                elif PHOT_flux_format == 2:
+                    self.PHOT_data_flux[instr],self.PHOT_data_err[instr] = open_photometry(PHOT_flux_dir+'/'+instr+'.txt')
+                    self.PHOT_filter_midpoint[instr] = calc_median_filter(self.PHOT_filter_function[instr],N_points = 2000*(not quick_load) + 500*quick_load)
+                    self.PHOT_filter_width[instr] = effective_width_filter(self.PHOT_filter_function[instr],N_points = 2000*(not quick_load) + 500*quick_load)
+                else:
+                    # -2 for data
+                    mag,mag_err,self.PHOT_data_flux[instr],self.PHOT_data_err[instr] = open_photometry(PHOT_flux_dir+'/'+instr+'.txt')
+                    self.PHOT_filter_midpoint[instr] = calc_median_filter(self.PHOT_filter_function[instr],N_points = 2000*(not quick_load) + 500*quick_load)
+                    self.PHOT_filter_width[instr] = effective_width_filter(self.PHOT_filter_function[instr],N_points = 2000*(not quick_load) + 500*quick_load)
+        
+        
+        if 'PHOT' in use_sim_files:
+            if len(self.PHOT_filter_midpoint.keys())==0:
+                for instr in self.PHOT_data_filter.keys():
+                    self.PHOT_filter_function[instr] = interp1d(self.PHOT_data_filter[instr][0],self.PHOT_data_filter[instr][1],bounds_error=False,fill_value=0.)
+                    if data_dir is None or PHOT_sim_files_format is not None:
+                        self.PHOT_filter_midpoint[instr] = calc_median_filter(self.PHOT_filter_function[instr],N_points = 2000)
+                        self.PHOT_filter_width[instr] = effective_width_filter(self.PHOT_filter_function[instr],N_points = 2000)
+        
+        if 'CC' in use_sim_files and CC_data_dir is not None:
+            if verbose:
+                print('IMPORTING CONTINUUM-REMOVED SPECTRUM')
+            if '.txt' in CC_data_dir:
+                spectrum_name = CC_data_dir[index_last_slash(CC_data_dir):-4]
+                self.CC_data_wlen[spectrum_name],self.CC_data_flux[spectrum_name] = open_spectrum(CC_data_dir)
             else:
-                self.read_photometry(photometry_file=photometry_file,photometry_filter_dir=photometry_filter_dir)
+                for file in os.listdir(CC_data_dir):
+                    spectrum_name = file[:-4]
+                    self.CC_data_wlen[spectrum_name],self.CC_data_flux[spectrum_name] = open_spectrum(CC_data_dir + '/'+file)
+            
+            for spectrum_name in self.CC_data_wlen.keys():
+                self.CC_data_N[spectrum_name] = len(self.CC_data_wlen[spectrum_name])
+                self.CC_data_sf2[spectrum_name] = np.sum(np.array(self.CC_data_flux[spectrum_name])**2)/self.CC_data_N[spectrum_name]
+                if verbose:
+                    print('Length of SINFONI data',len(self.CC_data_wlen[spectrum_name]))
         
-        if spectroscopy_included:
-            self.read_spectroscopy_calib(spectroscopy_files=spectroscopy_files)
+        if 'RES' in use_sim_files and RES_data_dir is not None:
+            if verbose:
+                print('IMPORTING CONTINUUM-INCLUDED SPECTRUM')
+            if '.txt' in RES_data_dir:
+                spectrum_name = RES_data_dir[index_last_slash(RES_data_dir):-4]
+                data = open_spectrum(RES_data_dir)
+                print(np.shape(data))
+                print(data)
+                self.RES_data_wlen[spectrum_name],self.RES_data_flux[spectrum_name] = data
+            else:
+                for file in os.listdir(RES_data_dir):
+                    spectrum_name = file[:-4]
+                    print(spectrum_name)
+                    self.RES_data_wlen[spectrum_name],self.RES_data_flux[spectrum_name] = open_spectrum(RES_data_dir + '/'+file)
         
-        if contrem_spectroscopy_included:
-            self.read_spectroscopy_contrem(spectroscopy_files=contrem_spectroscopy_files)
-
-        return 
-
-    def read_spectroscopy_contrem(self,spectroscopy_files):
-        for file_key in spectroscopy_files.keys():
-            spectrum_pd = pd.read_csv(spectroscopy_files[file_key])
-            columns = spectrum_pd.columns
-            wlen,flux = spectrum_pd[['wlen','flux']].values.transpose()
-            
-            self.CC_data_wlen[file_key] = wlen
-            self.CC_data_flux[file_key] = flux
-            self.CC_data_N[file_key]    = len(wlen)
-            self.CC_data_sf2[file_key]  = flux**2
-        return
-
-    def read_spectroscopy_calib(self,spectroscopy_files):
-        for file_key in spectroscopy_files.keys():
-            spectrum_pd = pd.read_csv(spectroscopy_files[file_key])
-            columns = spectrum_pd.columns
-            wlen,flux = spectrum_pd[['wlen','flux']].values.transpose()
-            self.RES_data_wlen[file_key] = wlen
-            self.RES_data_flux[file_key] = flux
-            if 'error' in columns:
-                error = spectrum_pd['error'].values
-                cov = np.diag(error**2)
-                self.RES_inv_cov[file_key] = np.diag(1./error**2) # np.where(np.diag(error)==0,0,np.diag(1./error**2)) if 0 in error
-            elif 'cov_0' in columns:
-                cov = spectrum_pd[['cov_%i' % i for i in range(len(wlen))]].values
-                error = np.sqrt(np.diag(cov))
-                self.RES_inv_cov[file_key] = inv(cov)
-            
-            self.RES_cov_err[file_key] = cov
-            self.RES_data_flux_err[file_key] = error
-        return
-            
+        # calculates the error on the continuum-included data
+        if 'RES' in use_sim_files and RES_err_dir is not None:
+            temp_err = {}
+            if '.txt' in RES_err_dir:
+                spectrum_name = RES_err_dir[index_last_slash(RES_err_dir):-4]
+                assert(len(self.RES_data_wlen.keys()) == 1)
+                if spectrum_name != list(self.RES_data_wlen.keys())[0]:
+                    spectrum_name = list(self.RES_data_wlen.keys())[0]
+                temp_err[spectrum_name] = open_spectrum(RES_err_dir)
+            else:
+                for file in os.listdir(RES_err_dir):
+                    spectrum_name = file[:-4]
+                    temp_err[spectrum_name] = open_spectrum(RES_err_dir+'/'+file)
+            for spectrum_name in temp_err.keys():
+                if verbose:
+                    print('COV matrix shape ',np.shape(temp_err[spectrum_name]))
+                # data format might be (wvl,flux_err) or covariance matrix (flux_err,flux_err)
+                if len(np.shape(temp_err[spectrum_name])) == 1 or (np.shape(temp_err[spectrum_name])[0] != np.shape(temp_err[spectrum_name])[1]):
+                    if len(np.shape(temp_err[spectrum_name])) == 1:
+                        temp_flux_err = temp_err[spectrum_name]
+                    else:
+                        temp_flux_err = temp_err[spectrum_name][1] # assuming first row for wavelength, second for flux_err
+                    dim = len(temp_flux_err)
+                    result = np.ones((dim,dim))
+                    inverse = np.ones((dim,dim))
+                    for i in range(dim):
+                        result[i,i] = temp_flux_err[i]**2
+                        if temp_flux_err[i] != 0:
+                            inverse[i,i] = 1./temp_flux_err[i]
+                        else:
+                            inverse[i,i] = 1./np.max(temp_flux_err[temp_flux_err != 0])
+                        
+                    self.RES_cov_err[spectrum_name] = result
+                    self.RES_inv_cov[spectrum_name] = inverse
+                    self.RES_data_flux_err[spectrum_name] = temp_flux_err
+                else:
+                    self.RES_cov_err[spectrum_name] = temp_err[spectrum_name]
+                    self.RES_inv_cov[spectrum_name] = inv(temp_err[spectrum_name])
+                    self.RES_data_flux_err[spectrum_name] = np.array([np.sqrt(self.RES_cov_err[spectrum_name][i][i]) for i in range(len(self.RES_cov_err[spectrum_name]))])
+                assert(np.sum(self.RES_cov_err[spectrum_name]==np.inf)+np.sum(self.RES_inv_cov[spectrum_name]==np.inf)+np.sum(np.isnan(self.RES_cov_err[spectrum_name]))+np.sum(np.isnan(self.RES_inv_cov[spectrum_name])) == 0)
+                
         
-    def read_photometry(self,photometry_file,photometry_filter_dir):
-        photometry_pd = pd.read_csv(photometry_file)
-        columns = np.array(['Author','Filter','effective_wavelength','effective_width','Flux','Error'])
-        mask_found_cols = np.isin(columns,photometry_pd.columns)
-        if np.sum(mask_found_cols) != len(columns):
-            print('WARNING: columns ',columns[mask_found_cols],' not found!')
-        for index,row in photometry_pd.iterrows():
-            author,filt,wlen,eff_width,flux,flux_err = row[columns]
-            
-            db_name = '%s_%s' % (author,filt)
-            self.PHOT_data_flux[db_name] = flux
-            self.PHOT_data_err[db_name] = flux_err
-            self.PHOT_filter_midpoint[db_name] = wlen
-            self.PHOT_filter_width[db_name] = eff_width
-
-            all_filters = sorted(glob(photometry_filter_dir + '*.json'))
-            all_filters_names = list(map(lambda x: Path(x).stem,all_filters))
-            filt_name_db = filt.replace('/','_').replace('.','-')
-            filt_index = all_filters_names.index(filt_name_db)
-            filter_path = all_filters[filt_index]
-            with open(filter_path,'r') as f:
-                filter_info = json.loads(f.read())
-            self.PHOT_data_filter[db_name] = [filter_info['filter_profile']['wlen'],filter_info['filter_profile']['trsm']]
-            self.PHOT_filter_function[db_name] = interp1d(self.PHOT_data_filter[db_name][0],self.PHOT_data_filter[db_name][1],bounds_error=False,fill_value=0.)
         return
     
     def getCCSpectrum(self):
@@ -331,3 +373,4 @@ def do_arr_intersect(arr1,arr2):
     c=arr2[0]
     d=arr2[-1]
     return not (c > b + 0.1 or a > d + 0.1)
+    

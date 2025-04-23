@@ -23,8 +23,178 @@ from core.model import *
 from core.rebin import *
 from core.plot_errorbars_abundances import Errorbars_plot,Posterior_Classification_Errorbars
 
-
 def plot_data(config,
+              CC_wlen = None,
+              CC_flux = None,
+              CC_wlen_w_cont = None,
+              CC_flux_w_cont = None,
+              model_CC_wlen = None,
+              model_CC_flux = None,
+              sgfilter = None,
+              RES_wlen = None,
+              RES_flux = None,
+              RES_flux_err = None,
+              model_RES_wlen = None,
+              model_RES_flux = None,
+              PHOT_midpoint = None,
+              PHOT_width = None,
+              PHOT_flux = None,
+              PHOT_flux_err = None,
+              PHOT_filter = None,
+              PHOT_sim_wlen = None,
+              PHOT_sim_flux = None,
+              model_PHOT_flux = None,
+              inset_plot = True,
+              output_file = None,
+              plot_name='plot',
+              title = 'Spectrum',
+              fontsize=15,
+              plot_errorbars=True,
+              save_plot=True
+             ):
+    # define labels
+    wvl_label = 'Wavelength [$\mu$m]'
+    filter_label = 'Filter trsm.'
+    flux_label = 'Flux [Wm$^{-2}\mu$m$^{-1}$]'
+    CC_flux_label = 'Residuals [Wm$^{-2}\mu$m$^{-1}$]'
+
+    filter_plot = False
+    spectrum_plot=False
+    spectrum_contrem_plot=False
+    # photometry
+    if not PHOT_midpoint is None:
+        filter_plot=True
+        spectrum_plot=True
+    if (not RES_wlen is None) or (not model_RES_wlen is None):
+        spectrum_plot=True
+    if (not CC_wlen is None) or (not model_CC_wlen is None):
+        spectrum_contrem_plot=True
+
+    nb_plots = filter_plot + 2*spectrum_plot + spectrum_contrem_plot
+
+    xmin = 20
+    xmax = 0
+    if filter_plot:
+        xmin = np.min(list(PHOT_midpoint.values()))-0.2
+        xmax = np.max(list(PHOT_midpoint.values()))+0.2
+    if spectrum_plot:
+        xmin = np.min([xmin,min([min(wlen) for wlen in list(RES_wlen.values())])])
+        xmax = np.max([xmax,max([max(wlen) for wlen in list(RES_wlen.values())])])
+    if spectrum_contrem_plot:
+        xmin = np.min([xmin,min([min(wlen) for wlen in list(CC_wlen.values())])])
+        xmax = np.max([xmax,max([max(wlen) for wlen in list(CC_wlen.values())])])
+
+    fig = plt.figure(figsize=(10,2*nb_plots))
+    plot_i=1
+    """FILTER TRANSMISSION FUNCTION"""
+    if filter_plot:
+        ax = plt.subplot(nb_plots,1,plot_i) 
+        # determine order of filters wrt filter midpoint
+        
+        filter_pos = filter_position(PHOT_midpoint)
+        # give photometric fluxes a nice color
+        rgba = {}
+        cmap = color_palette('colorblind',n_colors = len(PHOT_flux.keys()),as_cmap = True)
+        for instr in PHOT_flux.keys():
+            rgba[instr] = cmap[filter_pos[instr]%len(cmap)]
+        
+        # plot filter trsm functions
+        ax.set_title(title,fontsize=fontsize)
+        x_min = 100
+        x_max = 0
+        for instr in PHOT_filter.keys():
+            ax.plot(PHOT_filter[instr][0],PHOT_filter[instr][1],color=rgba[instr])
+            # x_min = min(x_min,PHOT_filter[instr][0][0])
+            # x_max = max(x_max,PHOT_filter[instr][0][-1])
+        ax.set_xlabel(wvl_label,fontsize=fontsize)
+        ax.set_ylabel(filter_label,fontsize=fontsize)
+        ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
+        ax.set_xlim((xmin,xmax))
+        
+        plot_i += 1
+
+    """Continuum-included spectra"""
+    if spectrum_plot:
+        ax = plt.subplot(nb_plots,1,(plot_i,plot_i+1))
+        
+        # determine the y-errorbars
+        YERR = None
+        if RES_flux_err is not None:
+            
+            
+            YERR = {}
+            for key in RES_flux_err.keys():
+                if len(np.shape(RES_flux_err[key])) >= 2:
+                    # if it's a covariance matrix
+                    YERR[key] = np.sqrt(np.diag(RES_flux_err[key]))
+                else:
+                    # if it's a vector of error
+                    YERR[key] = RES_flux_err[key]
+        
+        """RESIDUALS DATA"""
+        if RES_wlen is not None:
+            
+            
+            if plot_errorbars:
+                ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,fmt='|',color='b',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
+            else:
+                ax = custom_plot(ax,RES_wlen,RES_flux,alpha=0.5,marker='+',zorder=1)
+        if model_RES_wlen is not None:
+            ax = custom_plot(ax,model_RES_wlen,model_RES_flux,color='r',zorder=1)
+        
+        """PHOTOMETRIC DATA"""
+        if PHOT_flux is not None:
+
+            for instr in PHOT_flux.keys():
+                yerr = None
+                if PHOT_flux_err is not None:
+                    yerr = PHOT_flux_err[instr]
+                ax.errorbar(PHOT_midpoint[instr],PHOT_flux[instr],xerr = PHOT_width[instr]/2, yerr = yerr,color=rgba[instr],zorder=2)
+
+        if model_PHOT_flux is not None:
+            for instr in model_PHOT_flux.keys():
+                ax.errorbar(PHOT_midpoint[instr],model_PHOT_flux[instr],xerr = PHOT_width[instr]/2,color='r',zorder=2)
+
+        """SIMULATED SPECTRUM FOR SIMULATED DATA"""
+        if PHOT_sim_wlen is not None:
+            ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',label='Simulated spectrum')
+        
+        ax.set_xlabel(wvl_label,fontsize=fontsize)
+        ax.set_ylabel(flux_label,fontsize=fontsize)
+        ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
+        ax.set_xlim((xmin,xmax))
+        plot_i += 2
+
+    if spectrum_contrem_plot:
+        ax = plt.subplot(nb_plots,1,plot_i)
+        print('new plot',plot_i)
+        """CC DATA"""
+        CC_flux_renormed = {key:CC_flux[key]/np.nanstd(CC_flux[key]) for key in CC_flux.keys()}
+        ax = custom_plot(ax,CC_wlen,CC_flux_renormed,color='k')
+        if model_CC_wlen is not None:
+            model_CC_flux_renormed = {key:model_CC_flux[key]/np.nanstd(model_CC_flux[key]) for key in model_CC_flux.keys()}
+            ax = custom_plot(ax,model_CC_wlen,model_CC_flux_renormed,color='r',lw = 0.5,label='Retrieved residuals')
+        #ax.legend(fontsize=fontsize)
+        ax.set_xlabel(wvl_label,fontsize=fontsize)
+        ax.set_ylabel(CC_flux_label,fontsize=fontsize)
+        ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
+        ax.set_xlim((xmin,xmax))
+    
+    fig.tight_layout()
+    
+    if save_plot:
+        print('finished')
+        if not os.path.exists(output_file):
+            try:
+                os.mkdir(output_file)
+            except FileExistsError:
+                print('Error avoided')
+        #fig.tight_layout()
+        #fig.savefig(output_file+'/'+plot_name+'.png',dpi=300,bbox_inches = 'tight',pad_inches = 0)
+        fig.savefig(output_file+'/'+plot_name+'.pdf',dpi=300)#,bbox_inches = 'tight',pad_inches = 0)
+    return fig
+
+def plot_data_old(config,
               CC_wlen = None,
               CC_flux = None,
               CC_wlen_w_cont = None,
@@ -85,6 +255,9 @@ def plot_data(config,
     if RES_wlen:
         xmin = np.min([xmin,min([min(wlen) for wlen in list(RES_wlen.values())])])
         xmax = np.max([xmax,max([max(wlen) for wlen in list(RES_wlen.values())])])
+    if plot_CC_spectrum:
+        xmin = np.min([xmin,min([min(wlen) for wlen in list(CC_wlen.values())])])
+        xmax = np.max([xmax,max([max(wlen) for wlen in list(CC_wlen.values())])])
     fig = plt.figure(figsize=(10,2*nb_plots))
     plot_i=1
     """FILTER TRANSMISSION FUNCTION"""
@@ -229,8 +402,8 @@ def plot_data(config,
             if PHOT_sim_wlen is not None:
                 ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',ls='--',lw = 0.5,label='Retrieved spectrum')
 
-            xlim_min,xlim_max = min([CC_wlen[key][0] for key in CC_wlen.keys()]),max([CC_wlen[key][-1] for key in CC_wlen.keys()])
-            ax.set_xlim((xlim_min,xlim_max))
+            # xlim_min,xlim_max = min([CC_wlen[key][0] for key in CC_wlen.keys()]),max([CC_wlen[key][-1] for key in CC_wlen.keys()])
+            ax.set_xlim((xmin,xmax))
             ax.legend(fontsize=fontsize)
             ax.set_xlabel(wvl_label,fontsize=fontsize)
             ax.set_ylabel(flux_label,fontsize=fontsize)
@@ -245,7 +418,7 @@ def plot_data(config,
             
             ax = custom_plot(ax,CC_wlen,CC_flux,color='k')#,label='SINFONI residuals')
             if model_CC_wlen is not None:
-                ax = custom_plot(ax,model_CC_wlen,model_CC_flux,color='r',lw = 0.5,label='Retrieved SINFONI residuals')
+                ax = custom_plot(ax,model_CC_wlen,model_CC_flux,color='r',lw = 0.5,label='Retrieved residuals')
             #ax.legend(fontsize=fontsize)
             ax.set_xlabel(wvl_label,fontsize=fontsize)
             ax.set_ylabel(CC_flux_label,fontsize=fontsize)

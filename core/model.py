@@ -44,6 +44,21 @@ def guillot_temp_model(
                 temp_model_params['t_equ'])
     return pressures,temperatures
 
+def distribute_chem_model_params_into_abundances(chem_model_params:dict):
+    list_abundances = []
+    abundance_params = {}
+    for param in chem_model_params.keys():
+        abund,model,param_i = param.split('___')
+        list_abundances += [abund]
+        if abund not in abundance_params.keys():
+            abundance_params[abund] = {
+                'model':model
+            }
+        abundance_params[abund][param_i] = chem_model_params[param]
+    
+    list_abundances = list(np.unique(list_abundances))
+    return list_abundances,abundance_params
+
 def free_chem_model(
         chem_model_params:dict,
         pressures:np.array,
@@ -51,7 +66,62 @@ def free_chem_model(
         mode:str
     ):
     """
-    Calculates the abundances from the free model, i.e. vertically constant molecular abundances.
+    Calculates the abundances from the free model, i.e. vertically constant molecular abundances. Does allow varying abundance profiles.
+
+    Parameters
+    ----------
+    chem_model_params : dict
+        Dictionary containing the parameters needed to evaluate the chemical model, i.e. the model and parameters to build the abundance profile. Parameters are given in the following structure: param = '%s___%s___%s' % (abund,model,param_nb), where abund is the name of the opacity, model is the considered model ('constant' or ...), and param_i is the i-th parameter of the model.
+    pressures:np.array
+        Array containing the pressure layers to calculate the abundances at.
+    temperatures:np.array
+        Array containing the temperature of each atmospheric layer.
+    mode:str
+        Mode
+    
+    Returns
+    -------
+    pressures:np.array
+        Array containing the pressure layers of the atmosphere.
+    abundances:dict
+        dictionary containing the abundance of each molecule/opacity at each atmospheric layer.
+    """
+    abundances = {}
+    metal_sum = np.zeros_like(pressures)
+    
+    list_abundances,abundance_params = distribute_chem_model_params_into_abundances(chem_model_params)
+    
+    for abund in list_abundances:
+        if mode =='c-k':
+            mol_name = name_ck(abund)
+        else:
+            mol_name = abund
+        if abundance_params[abund]['model'] == 'constant':
+            abundances[mol_name] = np.ones_like(pressures)*1e1**abundance_params[abund]['param_0']
+        else:
+            print('Only constant abundance profiles are currently taken into account')
+        metal_sum += abundances[mol_name]
+    
+    abH2He = 1. - metal_sum
+    
+    if mode == 'lbl':
+        abundances['H2_main_iso'] = 0.75*abH2He
+        abundances['H2'] = 0.75*abH2He
+    else:
+        abundances['H2'] = 0.75*abH2He
+    
+    abundances['He'] = 0.25*abH2He
+    
+    return pressures,abundances
+
+def free_chem_model_old(
+        chem_model_params:dict,
+        pressures:np.array,
+        temperatures:np.array,
+        mode:str
+    ):
+    """
+    Calculates the abundances from the free model, i.e. vertically constant molecular abundances. Doesn't allow varying abundance profiles.
 
     Parameters
     ----------
@@ -128,7 +198,7 @@ def chem_equ_model(
         FeHs,
         temperatures,
         pressures,
-        Pquench_carbon = chem_model_params['Pquench_carbon'])
+        Pquench_carbon = 10**chem_model_params['log_Pquench_carbon'])
     abundances = filter_relevant_mass_fractions(mass_fractions,mode)
     return pressures,abundances
 

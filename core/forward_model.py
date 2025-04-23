@@ -116,7 +116,7 @@ class ForwardModel:
         else:
             # 'free' model
             if self.mode == 'c-k':
-                self.line_opacities = convert_to_ck_names(self.line_opacities)
+                self.line_opacities = list(np.unique(convert_to_ck_names(self.line_opacities)))
         
         self.opa_struct_set = False
         self.rt_obj = None
