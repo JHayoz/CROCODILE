@@ -9,12 +9,13 @@ def open_config(path_config_dir):
     return config_file
 
 def create_dir(path):
-    
-    if not os.path.exists(path):
-        try:
-            os.mkdir(path)
-        except FileExistsError:
-            print('Avoided error')
+    dir_path = Path(path)
+    dir_path.mkdir(exist_ok=True,parents=True)
+    # if not os.path.exists(path):
+    #     try:
+    #         os.mkdir(path,)
+    #     except FileExistsError:
+    #         print('Avoided error')
     return 
 
 def read_samples(config_file):
