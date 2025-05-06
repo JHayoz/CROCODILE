@@ -81,7 +81,7 @@ def plot_data(config,
     if filter_plot:
         xmin = np.min(list(PHOT_midpoint.values()))-0.2
         xmax = np.max(list(PHOT_midpoint.values()))+0.2
-    if spectrum_plot:
+    if spectrum_plot and len(RES_wlen.keys()) > 0:
         xmin = np.min([xmin,min([min(wlen) for wlen in list(RES_wlen.values())])])
         xmax = np.max([xmax,max([max(wlen) for wlen in list(RES_wlen.values())])])
     if spectrum_contrem_plot:
