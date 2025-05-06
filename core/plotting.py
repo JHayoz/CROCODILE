@@ -12,10 +12,12 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 import os
 from os import path
+from pathlib import Path
 from random import sample
 from PyAstronomy.pyasl import crosscorrRV,fastRotBroad,rotBroad
 import scipy.constants as cst
 from seaborn import color_palette
+
 from petitRADTRANS import physics
 
 from core.util import *
@@ -24,26 +26,26 @@ from core.rebin import *
 from core.plot_errorbars_abundances import Errorbars_plot,Posterior_Classification_Errorbars
 
 def plot_data(config,
-              CC_wlen = None,
-              CC_flux = None,
-              CC_wlen_w_cont = None,
-              CC_flux_w_cont = None,
-              model_CC_wlen = None,
-              model_CC_flux = None,
-              sgfilter = None,
-              RES_wlen = None,
-              RES_flux = None,
-              RES_flux_err = None,
-              model_RES_wlen = None,
-              model_RES_flux = None,
-              PHOT_midpoint = None,
-              PHOT_width = None,
-              PHOT_flux = None,
-              PHOT_flux_err = None,
-              PHOT_filter = None,
-              PHOT_sim_wlen = None,
-              PHOT_sim_flux = None,
-              model_PHOT_flux = None,
+              CC_wlen = {},
+              CC_flux = {},
+              CC_wlen_w_cont = {},
+              CC_flux_w_cont = {},
+              model_CC_wlen = {},
+              model_CC_flux = {},
+              sgfilter = {},
+              RES_wlen = {},
+              RES_flux = {},
+              RES_flux_err = {},
+              model_RES_wlen = {},
+              model_RES_flux = {},
+              PHOT_midpoint = {},
+              PHOT_width = {},
+              PHOT_flux = {},
+              PHOT_flux_err = {},
+              PHOT_filter = {},
+              PHOT_sim_wlen = {},
+              PHOT_sim_flux = {},
+              model_PHOT_flux = {},
               inset_plot = True,
               output_file = None,
               plot_name='plot',
@@ -52,6 +54,8 @@ def plot_data(config,
               plot_errorbars=True,
               save_plot=True
              ):
+    
+    output_file_path = Path(output_file)
     # define labels
     wvl_label = 'Wavelength [$\mu$m]'
     filter_label = 'Filter trsm.'
@@ -62,12 +66,12 @@ def plot_data(config,
     spectrum_plot=False
     spectrum_contrem_plot=False
     # photometry
-    if not PHOT_midpoint is None:
+    if len(PHOT_flux.keys()) > 0:
         filter_plot=True
         spectrum_plot=True
-    if (not RES_wlen is None) or (not model_RES_wlen is None):
+    if (len(RES_wlen.keys()) > 0) or (len(model_RES_wlen.keys()) > 0):
         spectrum_plot=True
-    if (not CC_wlen is None) or (not model_CC_wlen is None):
+    if (len(CC_wlen.keys()) > 0) or (len(model_CC_wlen.keys()) > 0):
         spectrum_contrem_plot=True
 
     nb_plots = filter_plot + 2*spectrum_plot + spectrum_contrem_plot
@@ -184,14 +188,14 @@ def plot_data(config,
     
     if save_plot:
         print('finished')
-        if not os.path.exists(output_file):
+        if not os.path.exists(output_file_path):
             try:
-                os.mkdir(output_file)
+                os.mkdir(output_file_path)
             except FileExistsError:
                 print('Error avoided')
         #fig.tight_layout()
-        #fig.savefig(output_file+'/'+plot_name+'.png',dpi=300,bbox_inches = 'tight',pad_inches = 0)
-        fig.savefig(output_file+'/'+plot_name+'.pdf',dpi=300)#,bbox_inches = 'tight',pad_inches = 0)
+        fig.savefig(output_file_path/ ('%s.png' % plot_name),dpi=300,bbox_inches = 'tight',pad_inches = 0)
+        #fig.savefig(output_file_path/ ('%s.pdf' % plot_name),dpi=300)#,bbox_inches = 'tight',pad_inches = 0)
     return fig
 
 def plot_data_old(config,
@@ -622,40 +626,40 @@ def plot_profiles(pressures,
     plt.tight_layout()
     fig.savefig(output_dir+'/temp_abunds_plot.png',dpi=300)
 
-def plot_corner(config,
-                samples,
-                param_range = None,
-                percent_considered = 0.90,
-                output_file = '',
-                fontsize=12,
-                include_abunds = True,
-                title = 'Retrieval',
-                plot_format = 'png',
-                save_plot=True):
+def plot_corner(
+    config_file,
+    samples,
+    param_range = None,
+    percent_considered = 0.90,
+    output_file = '',
+    fontsize=12,
+    include_abunds = True,
+    title = 'Retrieval',
+    plot_format = 'png',
+    save_plot=True):
     
     if plot_format not in ['eps', 'jpeg', 'jpg', 'pdf', 'pgf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz', 'tif', 'tiff']:
         plot_format = 'png'
     
-    params_names = config['PARAMS_NAMES']
-    if 'ABUNDANCES' in config.keys():
-        abundances_names = config['ABUNDANCES']
-    else:
-        abundances_names=[]
+    prior_obj = Prior(config_file)
+    params_names = prior_obj.params_names
+    abundances_names = get_abundance_params(config_file)
     
     nb_iter = len(samples)
-    index_consider = int(nb_iter*(1.-percent_considered))
+    index_consider = int(np.ceil(nb_iter*(1.-percent_considered)))
     
     samples_cut = samples[index_consider:,:]
     
     if not include_abunds:
-        params_names = [param for param in config['PARAMS_NAMES'] if not param in abundances_names]
-        samples_cut = samples_cut[:,[index for index in range(len(config['PARAMS_NAMES'])) if config['PARAMS_NAMES'][index] not in abundances_names]]
+        samples_cut = samples_cut[:,[index for index in range(len(params_names)) if params_names[index] not in abundances_names]]
+        params_names = [param for param in params_names if not param in abundances_names]
     
     n_params = len(params_names)
     corner_range=None
     if param_range is not None:
-        corner_range=list([(param_range[param][0],param_range[param][1]) if param in config['TEMPS'] + config['UNSEARCHED_TEMPS'] + config['CLOUDS'] else (param_range['abundances'][0],param_range['abundances'][1]) for param in params_names])
-    fig = corner(samples_cut, quantiles = [(1-0.6827)/2,0.5,1-(1-0.6827)/2],show_titles=True,title_kwargs={"fontsize":fontsize},verbose=True,labels=[nice_param_name(param,config) for param in params_names],bins=20,range=corner_range)
+        corner_range=list([(param_range[param][0],param_range[param][1]) if (not param in abundances_names) else (param_range['abundances'][0],param_range['abundances'][1]) for param in params_names])
+    labels = [nice_param_name(param,config_file) for param in params_names]
+    fig = corner(samples_cut, quantiles = [(1-0.6827)/2,0.5,1-(1-0.6827)/2],show_titles=True,title_kwargs={"fontsize":fontsize},verbose=True,labels=labels,bins=20,range=corner_range)
     if title is not None:
         fig.suptitle(title,fontsize=12)
     
@@ -663,19 +667,19 @@ def plot_corner(config,
     for i in range(n_params):
         ax = axes[i, i]
         ax.axvline(np.median(samples_cut, axis=0)[i], color='g')
-        if params_names[i] in config['DATA_PARAMS'].keys():
-            ax.axvline(config['DATA_PARAMS'][params_names[i]],color='r',label='True: {value:.2f}'.format(value=config['DATA_PARAMS'][params_names[i]]))
-            ax.legend(fontsize=6)
+        # if params_names[i] in config['DATA_PARAMS'].keys():
+        #     ax.axvline(config['DATA_PARAMS'][params_names[i]],color='r',label='True: {value:.2f}'.format(value=config['DATA_PARAMS'][params_names[i]]))
+        #     ax.legend(fontsize=6)
     for yi in range(n_params):
         for xi in range(yi):
             ax = axes[yi, xi]
             ax.axvline(np.median(samples_cut, axis=0)[xi], color='g')
             ax.axhline(np.median(samples_cut, axis=0)[yi], color='g')
             ax.plot(np.median(samples_cut, axis=0)[xi], np.median(samples_cut, axis=0)[yi], 'sg')
-            if params_names[xi] in config['DATA_PARAMS'].keys():
-                ax.axvline(config['DATA_PARAMS'][params_names[xi]],color='r')
-            if params_names[yi] in config['DATA_PARAMS'].keys():
-                ax.axhline(config['DATA_PARAMS'][params_names[yi]],color='r')
+            # if params_names[xi] in config['DATA_PARAMS'].keys():
+            #     ax.axvline(config['DATA_PARAMS'][params_names[xi]],color='r')
+            # if params_names[yi] in config['DATA_PARAMS'].keys():
+            #     ax.axhline(config['DATA_PARAMS'][params_names[yi]],color='r')
     if save_plot:
         if include_abunds:
             fig.savefig(output_file+'full_cornerplot.' + plot_format,dpi=300)
@@ -1147,7 +1151,7 @@ def plot_retrieved_spectra_FM_dico(
 
 
 def plot_CO_ratio(
-                config,
+                config_file,
                 samples,
                 percent_considered = 1.,
                 abundances_considered = 'all',
@@ -1162,12 +1166,17 @@ def plot_CO_ratio(
                 ax = None,
                 save_plot = True):
     
-    CO_ratio_samples = calc_CO_ratio(samples, 
-                                 params_names = config['PARAMS_NAMES'], 
-                                 abundances = config['ABUNDANCES'], 
-                                 percent_considered = percent_considered,
-                                 abundances_considered = abundances_considered,
-                                 method = 'VMRs')
+    prior_obj = Prior(config_file)
+    params_names = prior_obj.params_names
+    abundances_names = get_abundance_params(config_file)
+    
+    CO_ratio_samples = calc_CO_ratio(
+        samples, 
+        params_names = params_names, 
+        abundances = abundances_names, 
+        percent_considered = percent_considered,
+        abundances_considered = abundances_considered,
+        method = 'VMRs')
     
     if ax is None:
         fig = plt.figure(figsize=figsize)
@@ -1190,7 +1199,7 @@ def plot_CO_ratio(
         return ax
 
 def plot_FeH_ratio(
-                config,
+                config_file,
                 samples,
                 percent_considered = 1.,
                 abundances_considered = 'all',
@@ -1205,12 +1214,16 @@ def plot_FeH_ratio(
                 ax = None,
                 save_plot=True):
     
+    prior_obj = Prior(config_file)
+    params_names = prior_obj.params_names
+    abundances_names = get_abundance_params(config_file)
+    
     FeH_ratio_samples = calc_FeH_ratio_from_samples(
-                                samples, 
-                                params_names = config['PARAMS_NAMES'], 
-                                abundances = config['ABUNDANCES'], 
-                                percent_considered = percent_considered,
-                                abundances_considered = abundances_considered)
+        samples, 
+        params_names = params_names, 
+        abundances = abundances_names,
+        percent_considered = percent_considered,
+        abundances_considered = abundances_considered)
     
     if ax is None:
         fig = plt.figure(figsize=figsize)
@@ -1364,7 +1377,7 @@ def plot_retrieved_rotbroad(
     plt.savefig(output_dir+'retrieved_rot_broad.png',dpi=300)
 
 def plot_retrieved_temperature_profile(
-        config,
+        config_file,
         samples,
         output_file,
         nb_stds = 3,
@@ -1383,54 +1396,26 @@ def plot_retrieved_temperature_profile(
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
     
-    params_names = config['PARAMS_NAMES']
-    data_params = config['DATA_PARAMS']
+    temp_model = config_file['retrieval']['FM']['p-T']['model']
     
-    temp_model = config['TEMP_MODEL']
-    temp_params_names = config['TEMPS']
-    unsearched_temp_params = config['UNSEARCHED_TEMPS']
-    
-    temp_params = {}
-    for param in unsearched_temp_params:
-        temp_params[param] = data_params[param]
-    
-    if 'P0' in params_names:
-        temp_params['P0'] = np.median(samples[:,params_names.index('P0')])
-    
-    temp_curves = np.zeros((len(samples),100))
-    for pos_i,position in enumerate(samples):
+    temperatures_all = []
+    for sample_i,params in enumerate(samples):
+        chem_params,temp_params,clouds_params,physical_params,data_params = read_forward_model_from_config(
+            config_file=config_file,
+            params=params,
+            params_names=params_names,
+            extract_param=True)
+        pressures,temperatures=get_temperatures(
+            temp_model=config_file['retrieval']['FM']['p-T']['model'],
+            temp_model_params=temp_params,
+            physical_model_params=physical_params)
+        temperatures_all += [temperatures]
+    temperatures_all_arr = np.array(temperatures_all)
         
-        for param_i,param in enumerate(params_names):
-            if param in temp_params_names:
-                temp_params[param] = position[param_i]
-                
-        pressures,temperatures = get_temperatures(
-            temp_model=temp_model,
-            temp_model_params=temp_params)
-        
-        temp_curves[pos_i] = temperatures
-        
-    quantiles = [(1-0.9973)/2,
-                 (1-0.9545)/2,
-                 (1-0.6827)/2,
-                 0.5,
-                 1-(1-0.6827)/2,
-                 1-(1-0.9545)/2,
-                 1-(1-0.9973)/2][3-nb_stds:3+nb_stds+1]
-    quantile_curves = np.quantile(temp_curves,q=quantiles,axis = 0)
+    quantiles = get_std_percentiles(nb_stds=nb_stds)
     
+    quantile_curves = np.quantile(temperatures_all_arr,q=quantiles,axis = 0)
     
-    data_pressures,data_temperatures = get_temperatures(
-            temp_model=data_params['TEMP_MODEL'],
-            temp_model_params=data_params)
-    
-    if plot_data:
-        ax.plot(data_temperatures,data_pressures,color = 'r',ls='--',lw=lw*2,label='True $T_{\mathrm{equ}}$: '+'{v}'.format(v=data_params['t_equ']) + ' K')
-    # median curve
-    """
-    if 't_equ' in params_names:
-        ax.plot(quantile_curves[nb_stds],pressures,color = color,lw=lw)
-    """
     if nb_stds > 0:
         for std_i in range(1,nb_stds+1):
             lower_curve = quantile_curves[nb_stds - std_i]

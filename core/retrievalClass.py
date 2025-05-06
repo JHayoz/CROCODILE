@@ -7,26 +7,35 @@ Created on Wed Apr 04 12:40 2025
 import sys
 import numpy as np
 from pathlib import Path
+from time import time
+from PyAstronomy.pyasl import crosscorrRV
+import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 
 import os
 from config_petitRADTRANS import *
 os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 from os import path
-from petitRADTRANS import radtrans as rt
-from petitRADTRANS import nat_cst as nc
-from petitRADTRANS import physics
+# from petitRADTRANS import radtrans as rt
+# from petitRADTRANS import nat_cst as nc
+# from petitRADTRANS import physics
 
-from core.util import name_lbl_to_ck
+from core.util import name_lbl_to_ck,convert_units
 from core.read import read_forward_model_from_config
+from core.forward_model import ForwardModel
+from core.rebin import rebin_to_RES,rebin_to_CC,rebin_to_PHOT,doppler_shift
+from core.plotting import plot_data
 
 # class to define an atmospheric retrieval
-
+pc_to_meter = 30856775812799588
 class Retrieval:
-    def __init__(self,
-                 data_obj,
-                 prior_obj,
-                 config_file,
-                 for_analysis=False):
+    def __init__(
+        self,
+        data_obj,
+        prior_obj,
+        config_file,
+        for_analysis,
+        continue_retrieval):
         
         self.data_obj = data_obj
         self.prior_obj = prior_obj
@@ -41,6 +50,7 @@ class Retrieval:
         self.abundances_ck = [name_lbl_to_ck(abund) for abund in self.abundances_lbl]
 
         self.params_names = self.prior_obj.params_names
+        print('PARAMETERS',self.params_names)
         
         # meta data
         self.retrieval_name = self.config['metadata']['retrieval_id']
@@ -52,12 +62,13 @@ class Retrieval:
         self.printing = self.config['hyperparameters']['diagnostics']['printing']
         self.timing = self.config['hyperparameters']['diagnostics']['timing']
         self.writing_threshold = self.config['hyperparameters']['diagnostics']['writing_threshold']
-        self.diag_file = output_path / 'diag.txt'
+        self.diag_file = self.output_path / 'diag.txt'
         
         # Declare diagnostics
         self.start_time = time()
         self.function_calls = 0
         self.computed_spectra = 0
+        self.outside_priors = 0
         self.NaN_spectra = 0
         self.NaN_spectRES = 0
         self.NaN_savgolay = 0
@@ -66,7 +77,8 @@ class Retrieval:
         self.nb_failed_DS = 0
         
         if not for_analysis:
-            open(self.diag_file,'w').close()
+            if not continue_retrieval:
+                open(self.diag_file,'w').close()
             
             if self.plotting:
                 if not os.path.exists(self.output_path / 'model'):
@@ -80,6 +92,7 @@ class Retrieval:
             self.CC_to_lbl_itvls = self.data_obj.CC_to_lbl_intervals
             self.RES_to_lbl_itvls = self.data_obj.RES_to_lbl_intervals
             self.lbl_intervals_max_step = self.data_obj.disjoint_lbl_intervals_max_stepsize
+            self.lbl_intervals_min_step = self.data_obj.disjoint_lbl_intervals_min_stepsize
         
         
         self.forwardmodel_lbl = None
@@ -97,8 +110,8 @@ class Retrieval:
                  cont_opacities= ['H2-H2','H2-He'],
                  rayleigh_scat = ['H2','He'],
                  cloud_model = self.cloud_model,
-                 cloud_species = self.config['clouds']['parameters']['opacities'],
-                 do_scat_emis = self.config['clouds']['parameters']['scattering_emission'],
+                 cloud_species = self.config['retrieval']['FM']['clouds']['parameters']['opacities'],
+                 do_scat_emis = self.config['retrieval']['FM']['clouds']['parameters']['scattering_emission'],
                  chem_model = self.chem_model,
                  temp_model = self.temp_model,
                  max_RV = 0,
@@ -117,6 +130,8 @@ class Retrieval:
                 wlen_borders_lbl = self.lbl_itvls[interval_key]
                 max_wlen_stepsize = self.lbl_intervals_max_step[interval_key]
                 
+                win_len = self.config['hyperparameters']['CC']['filter_size']/1e3/max_wlen_stepsize # in wvl channel
+                
                 self.forwardmodel_lbl[interval_key] = ForwardModel(
                      wlen_borders = wlen_borders_lbl,
                      max_wlen_stepsize = max_wlen_stepsize,
@@ -125,12 +140,12 @@ class Retrieval:
                      cont_opacities= ['H2-H2','H2-He'],
                      rayleigh_scat = ['H2','He'],
                      cloud_model = self.cloud_model,
-                     cloud_species = self.config['clouds']['parameters']['opacities'],
-                     do_scat_emis = self.config['clouds']['parameters']['scattering_emission'],
+                     cloud_species = self.config['retrieval']['FM']['clouds']['parameters']['opacities'],
+                     do_scat_emis = self.config['retrieval']['FM']['clouds']['parameters']['scattering_emission'],
                      chem_model = self.chem_model,
                      temp_model = self.temp_model,
                      max_RV = 1.01*max(abs(self.config['hyperparameters']['rv']['rv_min']),self.config['hyperparameters']['rv']['rv_max']),
-                     max_winlen = int(1.01*self.config['hyperparameters']['CC']['filter_size']),
+                     max_winlen = int(1.01*win_len),
                      include_H2 = True,
                      only_include = 'all'
                      )
@@ -165,7 +180,15 @@ class Retrieval:
     def lnprob_mcmc(self,x):
         return self.calc_log_likelihood(x)
     
-    def calc_log_L_CC(self,wlen,flux,physical_params,data_wlen,data_flux,data_N,data_sf2):
+    def calc_log_L_CC(
+        self,
+        wlen,
+        flux,
+        physical_params,
+        data_wlen,
+        data_flux,
+        data_N,
+        data_sf2):
         
         log_L_CC = 0
         
@@ -178,26 +201,32 @@ class Retrieval:
         # cut what I don't need to improve speed
         #wlen_cut,flux_cut = trim_spectrum(wlen,flux,wlen_data,threshold=5000,keep=1000)
         
+        # filter_size given in nm, not in wvl channels
+        dwvl = np.mean(wlen_data[1:]-wlen_data[:-1])*1e3 # size of a wvl channel in nm
+        win_len = self.config['hyperparameters']['CC']['filter_size']/dwvl # in wvl channel
+        
         wlen_removed,flux_removed,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(
             wlen,
             flux,
             wlen_data,
-            win_len = self.config['hyperparameters']['CC']['filter_size'],
+            win_len = win_len,
             method='linear',
             filter_method = 'only_gaussian',
             convert = True,
-            log_R=physical_params['R'],
-            distance=physical_params['distance'])
+            log_R=np.log10(physical_params['R']),
+            distance=physical_params['distance']*pc_to_meter)
         
         if sum(np.isnan(flux_rebin))>0:
             self.NaN_spectRES += 1
             log_L_CC += -np.inf
+            return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         assert(len(wlen_removed) == len(flux_removed))
         
         if sum(np.isnan(flux_removed))>0:
             self.NaN_savgolay += 1
             log_L_CC += -np.inf
+            return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         # cross-correlation
         dRV,CC=crosscorrRV(
@@ -212,6 +241,7 @@ class Retrieval:
         if sum(np.isnan(CC)>0):
             self.NaN_crosscorrRV += 1
             log_L_CC += -np.inf
+            return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         CC=CC/N
         RV_max_i=np.argmax(CC)
@@ -224,7 +254,7 @@ class Retrieval:
                 plt.axvline(dRV[RV_max_i],color='r',label='Max CC at RV={rv}'.format(rv=dRV[RV_max_i]))
                 plt.legend()
                 plt.title('C-C ' + str(int(self.function_calls/self.plotting_threshold)))
-                plt.savefig(self.output_path / 'model' / 'CC_fct_'+str(int(self.function_calls/self.plotting_threshold))+'.png',dpi=100)
+                plt.savefig(self.output_path / 'model' / ('CC_fct_%s.png' % int(self.function_calls/self.plotting_threshold)),dpi=100)
         
         # need to doppler shift the model to the argmax of the CC-function. For that, we need to go back to high-resolution spectrum out of petitRADTRANS
         
@@ -239,13 +269,18 @@ class Retrieval:
             wlen_removed,
             flux_removed,
             wlen_data,
-            win_len = self.config['hyperparameters']['CC']['filter_size'],
-            method='linear',
+            win_len = win_len,
+            method='datalike',
             filter_method = 'only_gaussian',
             convert = True,
-            log_R=physical_params['R'],
-            distance=physical_params['distance'])
+            log_R=np.log10(physical_params['R']),
+            distance=physical_params['distance']*pc_to_meter)
         assert(len(wlen_removed) == len(wlen_data))
+        
+        if sum(np.isnan(flux_removed))>0:
+            self.NaN_spectRES += 1
+            log_L_CC += -np.inf
+            return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         s_g2 = 1./len(flux_removed)*np.sum(flux_removed**2)
         
@@ -253,11 +288,17 @@ class Retrieval:
             self.NaN_crosscorrRV += 1
             log_L_CC += -np.inf
             print('Negative values inside logarithm')
+            return log_L_CC,wlen_removed,flux_removed,sgfilter
+        
         log_L_CC += -N*np.log(s_f2-2*CC_max+s_g2)/2
         
         return log_L_CC,wlen_removed,flux_removed,sgfilter
     
-    def calc_log_L_PHOT(self,wlen,flux,physical_params):
+    def calc_log_L_PHOT(
+        self,
+        wlen,
+        flux,
+        physical_params):
         
         log_L_PHOT = 0.
         
@@ -268,14 +309,14 @@ class Retrieval:
             wlen,
             flux,
             filt_func = filt_func,
-            log_R = physical_params['R'],
-            distance = physical_params['distance'])
+            log_R = np.log10(physical_params['R']),
+            distance = physical_params['distance']*pc_to_meter)
         
         for instr in PHOT_flux.keys():
             
             if np.isnan(model_photometry[instr]):
                 self.NaN_photometry += 1
-                return -np.inf
+                return -np.inf,model_photometry,wlen_rebin,flux_rebin
             
             log_L_PHOT += -0.5*((model_photometry[instr]-PHOT_flux[instr])/PHOT_flux_err[instr])**2
         
@@ -297,16 +338,12 @@ class Retrieval:
         
         log_L_RES = 0
         if mode == 'lbl' or max(wlen_data[1:]/(wlen_data[1:]-wlen_data[:-1])) < 950:
-            wlen_rebin,flux_rebin = rebin_to_RES(wlen,flux,wlen_data,log_R = physical_params['R'],distance = physical_params['distance'])
+            wlen_rebin,flux_rebin = rebin_to_RES(wlen,flux,wlen_data,log_R = np.log10(physical_params['R']),distance = physical_params['distance']*pc_to_meter)
         else:
             # very edge case if I need to rebin a 1000 res spectrum into 980 res spectrum
-            wlen_convert,flux_convert = convert_units(wlen,flux, log_radius=physical_params['R'], distance = physical_params['distance'])
+            wlen_convert,flux_convert = convert_units(wlen,flux, log_radius=np.log10(physical_params['R']), distance = physical_params['distance']*pc_to_meter)
             flux_interped = interp1d(wlen_convert,flux_convert)
             wlen_rebin,flux_rebin = wlen_data.copy(),flux_interped(wlen_data)
-        
-        if sum(np.isnan(flux_rebin))>0:
-            self.NaN_spectRES += 1
-            log_L_RES += -np.inf
         
         flux_scaling_key = '%s___%s' % (data_key,'flux_scaling')
         flux_data_scaled = data_params[flux_scaling_key]*flux_data
@@ -314,6 +351,11 @@ class Retrieval:
         inverse_cov_scaled = inverse_cov/data_params[error_scaling_key]**2
         
         log_L_RES += -0.5*np.dot((flux_data_scaled-flux_rebin),np.dot(inverse_cov_scaled,(flux_data_scaled-flux_rebin)))
+        
+        if sum(np.isnan(flux_rebin))>0 or np.isnan(log_L_RES):
+            self.NaN_spectRES += 1
+            log_L_RES += -np.inf
+            return log_L_RES,wlen_rebin,flux_rebin
         
         return log_L_RES,wlen_rebin,flux_rebin
     
@@ -348,7 +390,7 @@ class Retrieval:
         metal_sum = 0.
         for param_name in chem_params.keys():
             if param_name in self.params_names:
-                log_prior += self.prior_obj.log_priors[param_name](chem_params[name])
+                log_prior += self.prior_obj.log_priors[param_name](chem_params[param_name])
             if not param_name in ['C/O','FeHs']:
                 abund,model,param_nb = param_name.split('___')
                 if model == 'constant':
@@ -359,19 +401,22 @@ class Retrieval:
         if metal_sum > 1.:
             log_prior += -np.inf
         
-        """temperature parameters"""
-        for param_name in temp_params.keys():
-            if param_name in self.params_names:
+        """prior of other parameters"""
+        for param_name in self.params_names:
+            if param_name in temp_params.keys():
+                # temperature parameters
                 log_prior += self.prior_obj.log_priors[param_name](temp_params[param_name])
-        
-        """clouds parameters"""
-        for param_name in clouds_params.keys():
-            if param_name in self.params_names:
+            elif param_name in clouds_params.keys():
+                # clouds parameters
                 log_prior += self.prior_obj.log_priors[param_name](clouds_params[param_name])
+            elif param_name in data_params.keys():
+                # data parameters
+                log_prior += self.prior_obj.log_priors[param_name](data_params[param_name])
         
         """return -inf if parameters fall outside prior distribution"""
         
         if (log_prior == -np.inf):
+            self.outside_priors += 1
             return -np.inf
         
         """Calculate the log-likelihood"""
@@ -404,27 +449,27 @@ class Retrieval:
                 return -np.inf
             
             if self.data_obj.PHOTinDATA():
-                print('c-k photometry Log-L')
+                # print('c-k photometry Log-L')
                 log_L_PHOT,model_photometry,wlen_PHOT,flux_PHOT = self.calc_log_L_PHOT(
-                    wlen_ck,
-                    flux_ck,
-                    physical_params)
+                    wlen=wlen_ck,
+                    flux=flux_ck,
+                    physical_params=physical_params)
             
             if self.data_obj.RES_data_with_ck:
                 for instr in RES_data_wlen.keys():
                     if self.data_obj.RES_data_info[instr][0] == 'c-k':
-                        print('c-k RES-Log-L for',instr)
+                        # print('c-k RES-Log-L for',instr)
                         log_L_RES_temp,wlen_RES[instr],flux_RES[instr] = self.calc_log_L_RES(
-                            wlen_ck,
-                            flux_ck,
-                            data_params,
-                            instr,
-                            physical_params,
-                            RES_data_wlen[instr],
-                            RES_data_flux[instr],
-                            flux_err[instr],
-                            inverse_cov[instr],
-                            flux_data_std[instr],
+                            wlen=wlen_ck,
+                            flux=flux_ck,
+                            data_params=data_params,
+                            data_key=instr,
+                            physical_params=physical_params,
+                            wlen_data=RES_data_wlen[instr],
+                            flux_data=RES_data_flux[instr],
+                            flux_err=flux_err[instr],
+                            inverse_cov=inverse_cov[instr],
+                            flux_data_std=flux_data_std[instr],
                             mode='c-k')
                         log_L_RES += log_L_RES_temp
         
@@ -452,12 +497,15 @@ class Retrieval:
                 if self.data_obj.CCinDATA():
                     for instr in CC_data_wlen.keys():
                         if self.CC_to_lbl_itvls[instr] == interval_key:
-                            print('lbl CC-Log-L for',instr)
+                            # print('lbl CC-Log-L for',instr)
                             log_L_CC_temp,wlen_CC[instr],flux_CC[instr],sgfilter[instr] = self.calc_log_L_CC(
-                                wlen_lbl,
-                                flux_lbl,
-                                physical_params,
-                                CC_data_wlen[instr],CC_data_flux[instr],data_N[instr],data_sf2[instr]
+                                wlen=wlen_lbl,
+                                flux=flux_lbl,
+                                physical_params=physical_params,
+                                data_wlen=CC_data_wlen[instr],
+                                data_flux=CC_data_flux[instr],
+                                data_N=data_N[instr],
+                                data_sf2=data_sf2[instr]
                                 )
                             log_L_CC += log_L_CC_temp
                 
@@ -465,18 +513,18 @@ class Retrieval:
                     for instr in RES_data_wlen.keys():
                         if self.data_obj.RES_data_info[instr][0] == 'lbl':
                             if self.RES_to_lbl_itvls[instr] == interval_key:
-                                print('lbl RES-Log-L for',instr)
+                                # print('lbl RES-Log-L for',instr)
                                 log_L_RES_temp,wlen_RES[instr],flux_RES[instr] = self.calc_log_L_RES(
-                                    wlen_lbl,
-                                    flux_lbl,
-                                    data_params,
-                                    instr,
-                                    physical_params,
-                                    RES_data_wlen[instr],
-                                    RES_data_flux[instr],
-                                    flux_err[instr],
-                                    inverse_cov[instr],
-                                    flux_data_std[instr],
+                                    wlen=wlen_lbl,
+                                    flux=flux_lbl,
+                                    data_params=data_params,
+                                    data_key=instr,
+                                    physical_params=physical_params,
+                                    wlen_data=RES_data_wlen[instr],
+                                    flux_data=RES_data_flux[instr],
+                                    flux_err=flux_err[instr],
+                                    inverse_cov=inverse_cov[instr],
+                                    flux_data_std=flux_data_std[instr],
                                     mode='lbl')
                                 log_L_RES += log_L_RES_temp
         
@@ -494,7 +542,8 @@ class Retrieval:
                 hours = (time() - self.start_time)/3600.0
                 info_list = [self.function_calls, self.computed_spectra,
                              log_L_CC,log_L_RES,log_L_PHOT,log_likelihood, hours, 
-                             self.nb_failed_DS ,self.NaN_spectra, self.NaN_spectRES, self.NaN_savgolay, self.NaN_crosscorrRV, self.NaN_photometry]
+                             self.nb_failed_DS ,self.NaN_spectra, self.NaN_spectRES, 
+                             self.NaN_savgolay, self.NaN_crosscorrRV, self.NaN_photometry, self.outside_priors]
                 with open(self.diag_file,'a') as f:
                     for i in np.arange(len(info_list)):
                         if (i == len(info_list) - 1):
@@ -504,20 +553,35 @@ class Retrieval:
         
         if self.plotting:
             if (self.function_calls%self.plotting_threshold == 0):
-                if not path.exists(self.output_path / 'model' / 'plot'+str(int(self.function_calls/self.plotting_threshold))):
-                    CC_data_wlen,CC_data_flux,data_RES_wlen,data_RES_flux,data_RES_err,data_RES_inv_cov,data_RES_flux_std,data_sim_wlen,data_sim_flux,data_PHOT_flux,data_PHOT_err,data_PHOT_filter,data_PHOT_filter_function,data_PHOT_filter_midpoint,data_PHOT_filter_width=None,None,None,None,None,None,None,None,None,{},{},{},{},{},{}
+                # only to avoid overwriting a plot
+                if not path.exists(self.output_path / 'model' / ('plot%i.png' % int(self.function_calls/self.plotting_threshold))):
+                    CC_data_wlen={}
+                    CC_data_flux={}
+                    data_RES_wlen={}
+                    data_RES_flux={}
+                    data_RES_err={}
+                    data_RES_inv_cov={}
+                    data_RES_flux_std={}
+                    data_sim_wlen={}
+                    data_sim_flux={}
+                    data_PHOT_flux={}
+                    data_PHOT_err={}
+                    data_PHOT_filter={}
+                    data_PHOT_filter_function={}
+                    data_PHOT_filter_midpoint={}
+                    data_PHOT_filter_width={}
                     if self.data_obj.CCinDATA():
-                        data_CC_wlen,data_CC_flux = self.data_obj.getCCSpectrum()
+                        CC_data_wlen,CC_data_flux = self.data_obj.getCCSpectrum()
                     if self.data_obj.RESinDATA():
                         data_RES_wlen,data_RES_flux,data_RES_err,data_RES_inv_cov,data_RES_flux_std = self.data_obj.getRESSpectrum()
                     if self.data_obj.PHOTinDATA():
                         data_sim_wlen,data_sim_flux = self.data_obj.getSimSpectrum()
                         data_PHOT_flux,data_PHOT_err,data_PHOT_filter,data_PHOT_filter_function,data_PHOT_filter_midpoint,data_PHOT_filter_width = self.data_obj.getPhot()
                     print('PLOTTING MODEL')
-                    plt.figure(figsize=(20,8))
-                    for key in wlen_RES.keys():
-                        plt.plot(wlen_RES[key],flux_RES[key])
-                    plt.savefig(self.output_path / 'model' + / + 'plot'+str(int(self.function_calls/self.plotting_threshold))+'.pdf')
+                    # plt.figure(figsize=(20,8))
+                    # for key in wlen_RES.keys():
+                    #     plt.plot(wlen_RES[key],flux_RES[key])
+                    # plt.savefig(self.output_path / 'model' / ('plot%i.png' % int(self.function_calls/self.plotting_threshold)))
                     
                     plot_data(
                             self.config,
@@ -540,7 +604,8 @@ class Retrieval:
                             PHOT_sim_flux = flux_PHOT,
                             model_PHOT_flux = model_photometry,
                             output_file = str(self.output_path / 'model'),
-                            plot_name = 'plot'+str(int(self.function_calls/self.plotting_threshold)))
+                            plot_name = 'plot%s' % int(self.function_calls/self.plotting_threshold),
+                            save_plot=True)
                     
         if self.timing and self.plotting:
             t2 = time()

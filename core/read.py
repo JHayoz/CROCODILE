@@ -10,12 +10,46 @@ def open_config(path_config_dir):
 
 def create_dir(path):
     
-    if not os.path.exists(OUTPUT_DIR):
+    if not os.path.exists(path):
         try:
-            os.mkdir(OUTPUT_DIR)
+            os.mkdir(path)
         except FileExistsError:
             print('Avoided error')
     return 
+
+def read_samples(config_file):
+    samples_path = Path(config_file['metadata']['output_dir']) / 'SAMPLESpos.pickle'
+    if not samples_path.exists():
+        print('No samples found for this retrieval')
+        return None
+    with open(samples_path,'rb') as f:
+        samples = pickle.load(f)
+    return samples
+def retrieve_samples(config_file):
+    
+    prior_obj = Prior(config_file)
+    params_names = prior_obj.params_names
+    n_params = len(params_names)
+    OUTPUT_DIR = config_file['metadata']['output_dir'] + '/'
+    
+    # create analyzer object
+    a = pymultinest.Analyzer(n_params, outputfiles_basename = OUTPUT_DIR)
+    
+    stats = a.get_stats()
+    bestfit_params = a.get_best_fit()
+    samples = np.array(a.get_equal_weighted_posterior())[:,:-1]
+    
+    return samples
+def save_samples(samples,config_file,overwrite=False):
+    OUTPUT_DIR = config_file['metadata']['output_dir'] + '/'
+    samples_path = Path(config_file['metadata']['output_dir']) / 'SAMPLESpos.pickle'
+    if (not samples_path.exists()) or overwrite:
+        f = open(samples_path,'wb')
+        pickle.dump(samples,f)
+        f.close()
+        print('Samples saved')
+    else:
+        print('Samples file exists already. Please use overwrite=True if you want to overwrite the samples.')
 
 def read_forward_model_from_config(config_file,params,params_names,extract_param=False):
     
@@ -37,8 +71,8 @@ def read_forward_model_from_config(config_file,params,params_names,extract_param
             for abund in abundance_list:
                 if config_file['retrieval']['FM']['chemistry']['parameters'][abund]['model'] == 'constant':
                     parameter_data=config_file['retrieval']['FM']['chemistry']['parameters'][abund]['param_0']
+                    param = '%s___%s___%s' % (abund,'constant','param_0')
                     if isinstance(parameter_data,list):
-                        param = '%s___%s___%s' % (abund,'constant','param_0')
                         create_prior_from_parameter(
                             param=param,
                             parameter_data=parameter_data,
@@ -55,7 +89,7 @@ def read_forward_model_from_config(config_file,params,params_names,extract_param
             print('chem_equ model not yet taken into account')
         # p-T
         if config_file['retrieval']['FM']['p-T']['model'] == 'guillot':
-            guillot_params = ['t_equ','t_int','log_gravity','log_kappa_IR','log_gamma']
+            guillot_params = ['t_equ','t_int','log_kappa_IR','log_gamma','P0']#,'log_gravity']
             for param in guillot_params:
                 if param in config_file['retrieval']['FM']['p-T']['parameters'].keys():
                     parameter_data=config_file['retrieval']['FM']['p-T']['parameters'][param]
@@ -94,8 +128,8 @@ def read_forward_model_from_config(config_file,params,params_names,extract_param
     # data
     for data_key in config_file['retrieval']['data'].keys():
         parameter_data=config_file['retrieval']['data'][data_key]['flux_scaling']
+        param = '%s___%s' % (data_key,'flux_scaling')
         if isinstance(parameter_data,list):
-            param = '%s___%s' % (data_key,'flux_scaling')
             create_prior_from_parameter(
                 param=param,
                 parameter_data=parameter_data,
@@ -108,8 +142,8 @@ def read_forward_model_from_config(config_file,params,params_names,extract_param
             data_params[param] = parameter_data
         
         parameter_data=config_file['retrieval']['data'][data_key]['error_scaling']
+        param = '%s___%s' % (data_key,'error_scaling')
         if isinstance(parameter_data,list):
-            param = '%s___%s' % (data_key,'error_scaling')
             create_prior_from_parameter(
                 param=param,
                 parameter_data=parameter_data,

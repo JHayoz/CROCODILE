@@ -7,6 +7,7 @@ Created on Mon Jan 25 09:40:40 2021
 import matplotlib.pyplot as plt
 import numpy as np
 from core.read import read_forward_model_from_config
+from pathlib import Path
 
 # prior likelihood functions
 class Prior:
@@ -42,7 +43,7 @@ class Prior:
             ax[col_i].set_title(name)
         plt.tight_layout()
         if save_plot:
-            fig.savefig(output_dir + 'priors.png',dpi=300)
+            fig.savefig(Path(output_dir) / 'priors.png',dpi=300)
     
     def read_prior_config(self,config_file):
         

@@ -23,12 +23,21 @@ class Data:
         spectroscopy_files = {},
         contrem_spectroscopy_files = {},
         photometry_filter_dir = ''):
-
+        
+        # spectroscopy
+        self.spectral_resolution = {}
         # continuum-removed spectrum, aka used with cross-correlation spectroscopy
         self.CC_data_wlen = {}
         self.CC_data_flux = {}
         self.CC_data_N    = {}
         self.CC_data_sf2  = {}
+        # continuum-included spectrum, aka used with method of residuals
+        self.RES_data_wlen = {}
+        self.RES_data_flux = {}
+        self.RES_cov_err = {}
+        self.RES_inv_cov = {}
+        self.RES_data_flux_err = {}
+        
         # photometric data
         self.PHOT_data_flux = {}
         self.PHOT_data_err = {}
@@ -39,12 +48,6 @@ class Data:
         # simulated continuum-included spectrum for photometry
         self.PHOT_sim_spectrum_wlen = {}
         self.PHOT_sim_spectrum_flux = {}
-        # continuum-included spectrum, aka used with method of residuals
-        self.RES_data_wlen = {}
-        self.RES_data_flux = {}
-        self.RES_cov_err = {}
-        self.RES_inv_cov = {}
-        self.RES_data_flux_err = {}
         
         photometry_included = not photometry_file is None
         spectroscopy_included = len(spectroscopy_files) > 0
@@ -61,7 +64,10 @@ class Data:
         
         if contrem_spectroscopy_included:
             self.read_spectroscopy_contrem(spectroscopy_files=contrem_spectroscopy_files)
-
+        
+        # calculate spectral resolution for spectroscopy
+        for file_key,wlen in {**self.CC_data_wlen,**self.RES_data_wlen}.items():
+            self.spectral_resolution[file_key] = np.mean(wlen[1:]/(wlen[1:]-wlen[:-1]))
         return 
 
     def read_spectroscopy_contrem(self,spectroscopy_files):
@@ -73,7 +79,7 @@ class Data:
             self.CC_data_wlen[file_key] = wlen
             self.CC_data_flux[file_key] = flux
             self.CC_data_N[file_key]    = len(wlen)
-            self.CC_data_sf2[file_key]  = flux**2
+            self.CC_data_sf2[file_key]  = 1./len(wlen)*np.sum(flux**2)
         return
 
     def read_spectroscopy_calib(self,spectroscopy_files):
@@ -269,6 +275,7 @@ class Data:
         
         self.disjoint_lbl_intervals = final_intervals
         self.disjoint_lbl_intervals_max_stepsize = {key:0 for key in self.disjoint_lbl_intervals.keys()}
+        self.disjoint_lbl_intervals_min_stepsize = {key:100 for key in self.disjoint_lbl_intervals.keys()}
         
         if self.CCinDATA():
             for key in self.CC_data_wlen.keys():
@@ -276,6 +283,7 @@ class Data:
                     if do_arr_intersect(self.CC_data_wlen[key],self.disjoint_lbl_intervals[interval_i]):
                         self.CC_to_lbl_intervals[key] = interval_i
                         self.disjoint_lbl_intervals_max_stepsize[interval_i] = max(self.disjoint_lbl_intervals_max_stepsize[interval_i],self.CC_data_info[key][2])
+                        self.disjoint_lbl_intervals_min_stepsize[interval_i] = min(self.disjoint_lbl_intervals_min_stepsize[interval_i],self.CC_data_info[key][2])
                         break
         
         if self.RESinDATA():
@@ -285,6 +293,7 @@ class Data:
                         if do_arr_intersect(self.RES_data_wlen[key],self.disjoint_lbl_intervals[interval_i]):
                             self.RES_to_lbl_intervals[key] = interval_i
                             self.disjoint_lbl_intervals_max_stepsize[interval_i] = max(self.disjoint_lbl_intervals_max_stepsize[interval_i],self.RES_data_info[key][2])
+                            self.disjoint_lbl_intervals_min_stepsize[interval_i] = min(self.disjoint_lbl_intervals_min_stepsize[interval_i],self.RES_data_info[key][2])
                             break
     
     

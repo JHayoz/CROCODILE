@@ -81,7 +81,6 @@ def rebin_to_CC(wlen,flux,wlen_data,win_len,method='linear',filter_method = 'onl
     # convert from CSG to SI units and atmospheric flux at Earth. Now just the wlen to SI units
     if convert:
         wlen_temp, flux_temp = convert_units(wlen, flux, log_R, distance = distance)
-        
     else:
         wlen_temp = 1e4*wlen
         flux_temp = flux

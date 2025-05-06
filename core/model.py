@@ -7,16 +7,17 @@ Created on Fri May 28 10:15:36 2021
 
 import numpy as np
 import sys
+from scipy.constants import c as speed_c
 import petitRADTRANS as rt
-from petitRADTRANS import nat_cst as nc
 from petitRADTRANS import physics
 from petitRADTRANS.poor_mans_nonequ_chem import *
 
-from core.util import filter_relevant_mass_fractions,get_MMWs,name_ck
+from core.util import filter_relevant_mass_fractions,get_MMWs,name_ck,name_lbl_to_ck
 import sys
 
 def guillot_temp_model(
-        temp_model_params:dict
+        temp_model_params:dict,
+        physical_model_params:dict
     ):
     """
     Calculates the p-T profile from the Guillot model.
@@ -39,7 +40,7 @@ def guillot_temp_model(
                 pressures,
                 1e1**temp_model_params['log_kappa_IR'],
                 1e1**temp_model_params['log_gamma'],
-                1e1**temp_model_params['log_gravity'],
+                1e1**physical_model_params['log_gravity'],
                 temp_model_params['t_int'],
                 temp_model_params['t_equ'])
     return pressures,temperatures
@@ -93,7 +94,7 @@ def free_chem_model(
     
     for abund in list_abundances:
         if mode =='c-k':
-            mol_name = name_ck(abund)
+            mol_name = name_lbl_to_ck(abund)
         else:
             mol_name = abund
         if abundance_params[abund]['model'] == 'constant':
@@ -145,7 +146,7 @@ def free_chem_model_old(
     metal_sum = 0
     for name in chem_model_params.keys():
         if mode =='c-k':
-            mol_name = name_ck(name)
+            mol_name = name_lbl_to_ck(name)
         else:
             mol_name = name
         abundances[mol_name] = np.ones_like(pressures)*1e1**chem_model_params[name]
@@ -233,24 +234,25 @@ def get_abundances(
         dictionary containing the abundance of each molecule/opacity at each atmospheric layer.
     """
     if chem_model == 'free':
-        print('Evaluating free chemical model')
+        # print('Evaluating free chemical model')
         pressures,abundances = free_chem_model(chem_model_params,pressures,temperatures,mode=mode)
     elif chem_model=='chem_equ':
-        print('Evaluating chemical equilibrium model')
+        # print('Evaluating chemical equilibrium model')
         pressures,abundances = chem_equ_model(chem_model_params,pressures,temperatures,mode=mode)
     elif chem_model=='modified_chem_equ':
         pressures,abundances = chem_equ_model(chem_model_params,pressures,temperatures,mode=mode)
         for param in chem_model_params.keys():
             if param in abundances.keys():
-                print('Modifying %s abundance' % param)
+                # print('Modifying %s abundance' % param)
                 abundances[param] = np.ones_like(pressures)*1e1**chem_model_params[name]
     else:
         pressures,abundances =None,None
     return pressures,abundances
     
 def get_temperatures(
-        temp_model:str='guillot',
-        temp_model_params:dict={}
+        temp_model:str,
+        temp_model_params:dict,
+        physical_model_params:dict
     ):
     """
     Calculates the p-T profile from the model and parameters given.
@@ -270,7 +272,7 @@ def get_temperatures(
         Array containing the temperature of each atmospheric layer.
     """
     if temp_model == 'guillot':
-        pressures,temperatures = guillot_temp_model(temp_model_params)
+        pressures,temperatures = guillot_temp_model(temp_model_params,physical_model_params)
     else:
         pressures,temperatures =None, None
     
@@ -315,13 +317,13 @@ def evaluate_forward_model(
     if not external_pt_profile is None:
         pressures,temperatures = external_pt_profile
     else:
-        pressures,temperatures = get_temperatures(temp_model,temp_model_params)
+        pressures,temperatures = get_temperatures(temp_model,temp_model_params,physical_params)
     
     pressures,abundances = get_abundances(chem_model,chem_model_params,pressures,temperatures,mode=mode)
     
     if only_include != 'all':
         for mol in only_include:
-            print(mol)
+            # print(mol)
             assert(mol in abundances.keys() or mol == 'H2_main_iso')
         new_abundances = {key:abundances[key] for key in only_include if key!= 'H2_main_iso'}
         new_abundances['H2_main_iso'] = abundances['H2']
@@ -331,7 +333,6 @@ def evaluate_forward_model(
         abundances = new_abundances
     if mode == 'lbl':
         abundances['H2_main_iso'] = abundances['H2']
-    
     
     wlen,flux=rt_obj_calc_flux(rt_object,
                      temperatures,
@@ -428,5 +429,5 @@ def rt_obj_calc_flux(
                         Kzz = kzz,
                         add_cloud_scat_as_abs = add_cloud_scat_as_abs
                         )
-    wlen,flux = nc.c/rt_object.freq, rt_object.flux
+    wlen,flux = speed_c*1e2/rt_object.freq, rt_object.flux # speed_c is the speed of light in SI units, *1e2 is in cgs units
     return wlen,flux

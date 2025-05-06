@@ -32,6 +32,18 @@ mlower = 3e-4
 mupper = 3e5
 SQRT2 = np.sqrt(2.)
 SQRT2PI = np.sqrt(2*np.pi)
+
+def get_std_percentiles(nb_stds):
+    quantiles = [
+        (1-0.9973)/2,
+        (1-0.9545)/2,
+        (1-0.6827)/2,
+        0.5,
+        1-(1-0.6827)/2,
+        1-(1-0.9545)/2,
+        1-(1-0.9973)/2]
+    return quantiles[3-nb_stds:3+nb_stds+1]
+
 def open_spectrum(file_dir):
     try:
         with open(file_dir,'r') as f:
@@ -179,11 +191,39 @@ def synthetic_photometry(wlen,flux,f):
     integrand2 = np.trapz([f(x) for i,x in enumerate(wlen)],wlen)
     return integrand1/integrand2
 
+def nice_name(molecule):
+    final_name = ''
+    if '_' in molecule:
+        final_name += molecule[:molecule.index('_')]
+    else:
+        final_name += molecule
+    final_string = ''
+    for char in final_name:
+        if char.isnumeric():
+            final_string += '$_{'+char+'}$'
+        else:
+            final_string += char
+    return final_string
+
+def get_abundance_params(config_file):
+    abundances_names = []
+    if config_file['retrieval']['FM']['chemistry']['model'] == 'free':
+        for mol in config_file['retrieval']['FM']['chemistry']['parameters'].keys():
+            for param_nb in config_file['retrieval']['FM']['chemistry']['parameters'][mol].keys():
+                if param_nb == 'model':
+                    continue
+                param_name = '%s___%s___%s' % (mol,config_file['retrieval']['FM']['chemistry']['parameters'][mol]['model'],param_nb)
+                abundances_names += [param_name]
+    else:
+        print('Chemistry model is not free')
+    return abundances_names
+
 def nice_param_name(param,config):
+    abundances_names = get_abundance_params(config_file)
     if param == 'FeHs':
         return '[Fe/H]'
-    if param in config['ABUNDANCES']:
-        return nice_name(param)
+    if param in abundances_names:
+        return abundance_param_to_nice(param)
     else:
         if param == 't_equ':
             return '$T_{\mathrm{equ}}$'
@@ -204,17 +244,56 @@ def nice_param_name(param,config):
         else:
             return param
 
+def nice_name(molecule):
+    final_name = ''
+    if '_' in molecule:
+        final_name += molecule[:molecule.index('_')]
+    else:
+        final_name += molecule
+    final_string = ''
+    for char in final_name:
+        if char.isnumeric():
+            final_string += '$_{'+char+'}$'
+        else:
+            final_string += char
+    return final_string
+
+def abundance_param_to_nice(param):
+    mol,model,param_nb = param.split('___')
+    mol_name = nice_name(mol)
+    if model == 'constant':
+        mol_name_str = mol_name
+    else:
+        mol_name_str = mol_name + ':' + param_nb[-1]
+    return mol_name_str
+
 def name_lbl_to_ck(abundance):
-    name_ck = {'H2S_main_iso':'H2S','H2O_main_iso':'H2O','CO2_main_iso':'CO2','CO_main_iso':'CO','HCN_main_iso':'HCN','H2_main_iso':'H2','CH4_main_iso':'CH4','NH3_main_iso':'NH3_HITRAN','TiO_all_iso':'TiO','O3_main_iso':'O3','SiO_main_iso':'SiO_Chubb','VO':'VO','PH3_main_iso':'PH3','FeH_main_iso':'FeH_Chubb'}
-    if abundance in [name_ck[name] for name in name_ck.keys()] or '_' not in abundance:
+    name_ck_dict = {
+        'CO_36':'13CO',
+        'H2S_main_iso':'H2S',
+        'H2O_main_iso':'H2O',
+        'CO2_main_iso':'CO2',
+        'CO_main_iso':'CO',
+        'HCN_main_iso':'HCN',
+        'H2_main_iso':'H2',
+        'CH4_main_iso':'CH4',
+        'CH4_hargreaves_main_iso':'CH4',
+        'NH3_main_iso':'NH3_HITRAN',
+        'TiO_all_iso':'TiO',
+        'O3_main_iso':'O3',
+        'SiO_main_iso':'SiO_Chubb',
+        'VO':'VO',
+        'PH3_main_iso':'PH3',
+        'FeH_main_iso':'FeH_Chubb'}
+    if abundance in name_ck_dict.values() or '_' not in abundance:
         return abundance
     else:
-        return name_ck[abundance]
+        return name_ck_dict[abundance]
 def name_ck(molecule):
     if molecule == 'NH3_main_iso':
         return 'NH3_HITRAN'
     if molecule == 'FeH_main_iso':
-        return 'FeH_Chubb'
+        return 'FeH'
     if molecule == 'SiO_main_iso':
         return 'SiO_Chubb'
     if not('_' in molecule):
@@ -223,7 +302,7 @@ def name_ck(molecule):
         return molecule[:molecule.index('_')]
     
 def convert_to_ck_names(abundances):
-    return [name_ck(mol) for mol in abundances]
+    return [name_lbl_to_ck(mol) for mol in abundances]
 
 def convert_units(wlen, flux, log_radius, distance):
     # converts a flux in CSG units to SI units, and from F_nu to F_lambda
@@ -334,10 +413,12 @@ def get_MMWs(mol):
     MMWs['CH4_hargreaves_main_iso'] = 16.
     MMWs['CO2'] = 44.
     MMWs['CO2_main_iso'] = 44.
+    MMWs['CO2_Chubb'] = 44.
     MMWs['CO'] = 28.
     MMWs['CO_all_iso'] = 28.
     MMWs['CO_main_iso'] = 28.
     MMWs['CO_36'] = 29.
+    MMWs['13CO'] = 29.
     MMWs['Na'] = 23.
     MMWs['K'] = 39.
     MMWs['NH3'] = 17.
@@ -428,8 +509,9 @@ def calc_CO_ratio(samples,params_names,abundances,percent_considered = 1.,abunda
         ab_metals = {}
         for name_i,name in enumerate(params_names):
             if name in abundances:
+                mol,model,param_nb = name.split('___')
                 if abundances_considered == 'all' or name in abundances_considered:
-                    ab_metals[name] = params[name_i]
+                    ab_metals[mol] = params[name_i]
         CO_ratio = 0
         if method == 'mine':
             CO_ratio = CO_ratio_mass(ab_metals)
@@ -554,8 +636,9 @@ def calc_FeH_ratio_from_samples(samples,params_names,abundances,percent_consider
         ab_metals = {}
         for name_i,name in enumerate(params_names):
             if name in abundances:
+                mol,model,param_nb = name.split('___')
                 if abundances_considered == 'all' or name in abundances_considered:
-                    ab_metals[name] = params[name_i]
+                    ab_metals[mol] = params[name_i]
         FeH_ratio_sampled.append(calc_FeH_ratio(ab_metals))
     return FeH_ratio_sampled
 

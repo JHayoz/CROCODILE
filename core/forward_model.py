@@ -189,10 +189,10 @@ class ForwardModel:
                               lbl_opacity_sampling = lbl_sampling)
         
     def calc_spectrum(self,
-                      chem_model_params:dict = {},
-                      temp_model_params:dict = {},
-                      cloud_model_params:dict = {},
-                      physical_params:dict = {},
+                      chem_model_params:dict,
+                      temp_model_params:dict,
+                      cloud_model_params:dict,
+                      physical_params:dict,
                       external_pt_profile:Union[np.array,list] = None,
                       return_profiles:bool = False
                       ):
@@ -229,13 +229,12 @@ class ForwardModel:
         if external_pt_profile is not None:
             pressures,temperatures = external_pt_profile
         else:
-            pressures,temperatures=get_temperatures(temp_model=self.temp_model,temp_model_params=temp_model_params)
+            pressures,temperatures=get_temperatures(temp_model=self.temp_model,temp_model_params=temp_model_params,physical_model_params=physical_params)
         
         # setup up opacity structure if not yet done so
         if not(self.opa_struct_set):
             self.rt_obj.setup_opa_structure(pressures)
             self.opa_struct_set = True
-        
         
         wlen,flux,pressures,temperatures,abundances = evaluate_forward_model(
             rt_object=self.rt_obj,

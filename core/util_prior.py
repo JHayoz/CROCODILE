@@ -64,20 +64,6 @@ def fit_skewed_gauss(pos,pdf):
     popt,pcov = curve_fit(skew_gauss_pdf,pos,pdf)
     return popt,pcov
 
-def nice_name(molecule):
-    final_name = ''
-    if '_' in molecule:
-        final_name += molecule[:molecule.index('_')]
-    else:
-        final_name += molecule
-    final_string = ''
-    for char in final_name:
-        if char.isnumeric():
-            final_string += '$_{'+char+'}$'
-        else:
-            final_string += char
-    return final_string
-
 def create_prior_from_parameter(param,parameter_data,RANGE,LOG_PRIORS,CUBE_PRIORS):
     if parameter_data[0] == 'uniform':
         create_uniform_prior(param=param,parameter_list=parameter_data[1],RANGE=RANGE,LOG_PRIORS=LOG_PRIORS,CUBE_PRIORS=CUBE_PRIORS)
