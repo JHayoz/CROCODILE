@@ -4,6 +4,8 @@ Created on Wed Apr 04 12:01 2025
 
 @author: Jean Hayoz
 """
+print('Starting imports')
+
 import os
 os.environ['OMP_NUM_THREADS'] = '1'
 import pymultinest
@@ -20,8 +22,7 @@ from core.data import Data
 from core.read import open_config,create_dir
 from core.retrievalClass import Retrieval
 
-
-
+print('... DONE')
 
 def main(config_file_path,continue_retrieval):
     
