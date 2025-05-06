@@ -12,13 +12,15 @@ import numpy as np
 import json
 import sys
 
+from config_petitRADTRANS import *
+os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
+
 from core.priors import Prior
 from core.data import Data
 from core.read import open_config,create_dir
 from core.retrievalClass import Retrieval
 
-from config_petitRADTRANS import *
-os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
+
 
 
 def main(config_file_path,continue_retrieval):
@@ -80,7 +82,7 @@ def main(config_file_path,continue_retrieval):
     json.dump(retrieval.params_names, open(retrieval.output_path / 'params.json', 'w'))
     
     # create analyzer object
-    a = pymultinest.Analyzer(n_params, outputfiles_basename = retrieval.output_path)
+    a = pymultinest.Analyzer(n_params, outputfiles_basename = str(retrieval.output_path) + '/')
     
     stats = a.get_stats()
     bestfit_params = a.get_best_fit()
