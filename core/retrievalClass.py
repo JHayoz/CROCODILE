@@ -218,14 +218,14 @@ class Retrieval:
         
         if sum(np.isnan(flux_rebin))>0:
             self.NaN_spectRES += 1
-            log_L_CC += -np.inf
+            log_L_CC += -1e299
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         assert(len(wlen_removed) == len(flux_removed))
         
         if sum(np.isnan(flux_removed))>0:
             self.NaN_savgolay += 1
-            log_L_CC += -np.inf
+            log_L_CC += -1e299
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         # cross-correlation
@@ -240,21 +240,12 @@ class Retrieval:
         
         if sum(np.isnan(CC)>0):
             self.NaN_crosscorrRV += 1
-            log_L_CC += -np.inf
+            log_L_CC += -1e299
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         CC=CC/N
         RV_max_i=np.argmax(CC)
         CC_max = CC[RV_max_i]
-        
-        if self.plotting:
-            if (self.function_calls%self.plotting_threshold == 0):
-                plt.figure()
-                plt.plot(dRV,CC)
-                plt.axvline(dRV[RV_max_i],color='r',label='Max CC at RV={rv}'.format(rv=dRV[RV_max_i]))
-                plt.legend()
-                plt.title('C-C ' + str(int(self.function_calls/self.plotting_threshold)))
-                plt.savefig(self.output_path / 'model' / ('CC_fct_%s.png' % int(self.function_calls/self.plotting_threshold)),dpi=100)
         
         # need to doppler shift the model to the argmax of the CC-function. For that, we need to go back to high-resolution spectrum out of petitRADTRANS
         
@@ -279,18 +270,27 @@ class Retrieval:
         
         if sum(np.isnan(flux_removed))>0:
             self.NaN_spectRES += 1
-            log_L_CC += -np.inf
+            log_L_CC += -1e299
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         s_g2 = 1./len(flux_removed)*np.sum(flux_removed**2)
         
         if (s_f2-2*CC_max+s_g2) <= 0:
             self.NaN_crosscorrRV += 1
-            log_L_CC += -np.inf
+            log_L_CC += -1e299
             print('Negative values inside logarithm')
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
         log_L_CC += -N*np.log(s_f2-2*CC_max+s_g2)/2
+
+        if self.plotting:
+            if (self.function_calls%self.plotting_threshold == 0):
+                plt.figure()
+                plt.plot(dRV,-N*np.log(s_f2-2*CC+s_g2)/2)
+                plt.axvline(dRV[RV_max_i],color='r',label='Max CC at RV={rv}'.format(rv=dRV[RV_max_i]))
+                plt.legend()
+                plt.title('log-L C-C ' + str(int(self.function_calls/self.plotting_threshold)))
+                plt.savefig(self.output_path / 'model' / ('CC_fct_%s.png' % int(self.function_calls/self.plotting_threshold)),dpi=100)
         
         return log_L_CC,wlen_removed,flux_removed,sgfilter
     
@@ -316,7 +316,7 @@ class Retrieval:
             
             if np.isnan(model_photometry[instr]):
                 self.NaN_photometry += 1
-                return -np.inf,model_photometry,wlen_rebin,flux_rebin
+                return -1e299,model_photometry,wlen_rebin,flux_rebin
             
             log_L_PHOT += -0.5*((model_photometry[instr]-PHOT_flux[instr])/PHOT_flux_err[instr])**2
         
@@ -354,7 +354,7 @@ class Retrieval:
         
         if sum(np.isnan(flux_rebin))>0 or np.isnan(log_L_RES):
             self.NaN_spectRES += 1
-            log_L_RES += -np.inf
+            log_L_RES += -1e299
             return log_L_RES,wlen_rebin,flux_rebin
         
         return log_L_RES,wlen_rebin,flux_rebin
@@ -399,7 +399,7 @@ class Retrieval:
                     print('Only constant abundance profiles are currently taken into account')
         
         if metal_sum > 1.:
-            log_prior += -np.inf
+            log_prior += -1e299
         
         """prior of other parameters"""
         for param_name in self.params_names:
@@ -415,9 +415,9 @@ class Retrieval:
         
         """return -inf if parameters fall outside prior distribution"""
         
-        if (log_prior == -np.inf):
+        if (log_prior < -1e297):
             self.outside_priors += 1
-            return -np.inf
+            return -1e299
         
         """Calculate the log-likelihood"""
         log_likelihood = 0.
@@ -446,7 +446,7 @@ class Retrieval:
             
             if sum(np.isnan(flux_ck))>0 or sum(np.isnan(wlen_ck))>0:
                 self.NaN_spectra += 1
-                return -np.inf
+                return -1e299
             
             if self.data_obj.PHOTinDATA():
                 # print('c-k photometry Log-L')
@@ -492,7 +492,7 @@ class Retrieval:
                 
                 if sum(np.isnan(flux_lbl))>0 or sum(np.isnan(wlen_lbl))>0:
                     self.NaN_spectra += 1
-                    return -np.inf
+                    return -1e299
                 
                 if self.data_obj.CCinDATA():
                     for instr in CC_data_wlen.keys():
@@ -611,6 +611,6 @@ class Retrieval:
             t2 = time()
             print('Printing and plotting: ',t2-t1)
         if np.isnan(log_prior + log_likelihood):
-            return -np.inf
+            return -1e299
         else:
             return log_prior + log_likelihood
