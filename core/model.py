@@ -289,7 +289,8 @@ def evaluate_forward_model(
         physical_params:dict,
         mode:str,
         only_include:list,
-        external_pt_profile:list=None
+        external_pt_profile:list=None,
+        calc_contribution:bool=False
     ):
     """
     Calculates the spectrum from the models and model parameters given.
@@ -334,13 +335,13 @@ def evaluate_forward_model(
     if mode == 'lbl':
         abundances['H2_main_iso'] = abundances['H2']
     
-    wlen,flux=rt_obj_calc_flux(rt_object,
+    wlen,flux,contr_em=rt_obj_calc_flux(rt_object,
                      temperatures,
                      abundances,
                      gravity=1e1**physical_params['log_gravity'],
                      clouds_params=cloud_model_params,
-                     contribution=False)
-    return wlen,flux,pressures,temperatures,abundances
+                     contribution=calc_contribution)
+    return wlen,flux,pressures,temperatures,abundances,contr_em
 
 def calc_MMW(
         abundances:dict
@@ -430,4 +431,8 @@ def rt_obj_calc_flux(
                         add_cloud_scat_as_abs = add_cloud_scat_as_abs
                         )
     wlen,flux = speed_c*1e2/rt_object.freq, rt_object.flux # speed_c is the speed of light in SI units, *1e2 is in cgs units
-    return wlen,flux
+    if contribution:
+        contr_em = rt_object.contr_em
+    else:
+        contr_em = None
+    return wlen,flux,contr_em

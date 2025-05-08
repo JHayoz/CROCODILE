@@ -286,7 +286,8 @@ class Retrieval:
         if self.plotting:
             if (self.function_calls%self.plotting_threshold == 0):
                 plt.figure()
-                plt.plot(dRV,-N*np.log(s_f2-2*CC+s_g2)/2)
+                # plt.plot(dRV,-N*np.log(s_f2-2*CC+s_g2)/2)
+                plt.plot(dRV,CC)
                 plt.axvline(dRV[RV_max_i],color='r',label='Max CC at RV={rv}'.format(rv=dRV[RV_max_i]))
                 plt.legend()
                 plt.title('log-L C-C ' + str(int(self.function_calls/self.plotting_threshold)))

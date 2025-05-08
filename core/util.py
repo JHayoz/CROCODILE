@@ -218,7 +218,7 @@ def get_abundance_params(config_file):
         print('Chemistry model is not free')
     return abundances_names
 
-def nice_param_name(param,config):
+def nice_param_name(param,config_file):
     abundances_names = get_abundance_params(config_file)
     if param == 'FeHs':
         return '[Fe/H]'

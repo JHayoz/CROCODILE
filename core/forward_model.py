@@ -194,7 +194,8 @@ class ForwardModel:
                       cloud_model_params:dict,
                       physical_params:dict,
                       external_pt_profile:Union[np.array,list] = None,
-                      return_profiles:bool = False
+                      return_profiles:bool = False,
+                      calc_contribution:bool = False
                       ):
         """
         Calculates the spectrum from the given parameter of chemical, thermal, or cloud model.
@@ -236,7 +237,7 @@ class ForwardModel:
             self.rt_obj.setup_opa_structure(pressures)
             self.opa_struct_set = True
         
-        wlen,flux,pressures,temperatures,abundances = evaluate_forward_model(
+        wlen,flux,pressures,temperatures,abundances,contr_em = evaluate_forward_model(
             rt_object=self.rt_obj,
             chem_model=self.chem_model,
             chem_model_params=chem_model_params,
@@ -247,13 +248,20 @@ class ForwardModel:
             physical_params=physical_params,
             mode=self.mode,
             only_include=self.only_include,
-            external_pt_profile=external_pt_profile)
+            external_pt_profile=external_pt_profile,
+            calc_contribution=calc_contribution)
         
         if self.only_include != 'all':
             self.only_include = list(dict.fromkeys(self.only_include))
             assert(len(abundances.keys())==len(self.only_include)+2)
         
         if return_profiles:
-            return wlen,flux,pressures,temperatures,abundances
+            if calc_contribution:
+                return wlen,flux,pressures,temperatures,abundances,contr_em
+            else:
+                return wlen,flux,pressures,temperatures,abundances
         else:
-            return wlen,flux
+            if calc_contribution:
+                return wlen,flux,contr_em
+            else:
+                return wlen,flux

@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 import os
 from core.util_prior import create_prior_from_parameter
+import pickle
+import pymultinest
+import numpy as np
 
 def open_config(path_config_dir):
     with open(Path(path_config_dir) / 'config.json','r') as f:
@@ -28,8 +31,9 @@ def read_samples(config_file):
     return samples
 def retrieve_samples(config_file):
     
-    prior_obj = Prior(config_file)
-    params_names = prior_obj.params_names
+    range_prior,_,_ = read_forward_model_from_config(config_file,params=[],params_names=[],extract_param=False)
+    params_names = list(range_prior.keys())
+    
     n_params = len(params_names)
     OUTPUT_DIR = config_file['metadata']['output_dir'] + '/'
     

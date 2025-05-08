@@ -16,6 +16,7 @@ import sys
 
 from config_petitRADTRANS import *
 os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
+import petitRADTRANS
 
 from core.priors import Prior
 from core.data import Data
@@ -24,9 +25,21 @@ from core.retrievalClass import Retrieval
 
 print('... DONE')
 
-def main(config_file_path,continue_retrieval):
+def main():
+    
+    target_id='hr2562b'
+    data_version='v01'
+    retrieval_name='all_data___free___subset_opacities'
+    
+    config_file_path = '/home/ipa/quanz/user_accounts/jhayoz/Projects/CO_ratio_snowlines/retrievals/%s/%s_data_%s_%s' % (
+        target_id,
+        target_id,
+        data_version,
+        retrieval_name)
     
     config_file=open_config(config_file_path)
+    continue_retrieval = 'False'
+    
     if continue_retrieval == 'False':
         cont_retr = False
     elif continue_retrieval == 'True':
@@ -57,47 +70,19 @@ def main(config_file_path,continue_retrieval):
         title = 'Data for retrieval %s' % config_file['metadata']['retrieval_id'],
         inset_plot=False,
         plot_errorbars=False,
-        save_plot=True)
+        save_plot=False)
     
     # load priors
     prior_obj = Prior(config_file)
-    prior_obj.plot(output_dir= OUTPUT_DIR)
+    prior_obj.plot(output_dir= OUTPUT_DIR,save_plot=False)
     
     # prepare retrieval object
     retrieval = Retrieval(
         data_obj=data_obj,
         prior_obj=prior_obj,
         config_file=config_file,
-        for_analysis=False,
+        for_analysis=True,
         continue_retrieval = cont_retr)
-    print('Starting Bayesian inference')
-    
-    n_params = len(retrieval.params_names)
-    
-    pymultinest.run(retrieval.lnprob_pymultinest,
-                    retrieval.Prior,
-                    n_params,
-                    outputfiles_basename=str(retrieval.output_path) + '/',
-                    resume = cont_retr,
-                    verbose = True,
-                    n_live_points = config_file['hyperparameters']['multinest']['n_live_points'])
-    
-    print('############### FINISHING THE SAMPLER #####################')
-    # save positions
-    json.dump(retrieval.params_names, open(retrieval.output_path / 'params.json', 'w'))
-    
-    # create analyzer object
-    a = pymultinest.Analyzer(n_params, outputfiles_basename = str(retrieval.output_path) + '/')
-    
-    stats = a.get_stats()
-    bestfit_params = a.get_best_fit()
-    samples = np.array(a.get_equal_weighted_posterior())[:,:-1]
-    
-    f = open(retrieval.output_path / 'SAMPLESpos.pickle','wb')
-    pickle.dump(samples,f)
-    f.close()
-    
-    return 
 
-if __name__ == "__main__":
-    main(sys.argv[1],sys.argv[2])
+    print('Code finished without error.')
+    print('CROCODILE successfully installed.')
