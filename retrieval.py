@@ -27,13 +27,7 @@ print('... DONE')
 def main(config_file_path,continue_retrieval):
     
     config_file=open_config(config_file_path)
-    if continue_retrieval == 'False':
-        cont_retr = False
-    elif continue_retrieval == 'True':
-        cont_retr = True
-    else:
-        print('Second argument needs to be either False or True, written as a string')
-    
+    cont_retr=bool(int(continue_retrieval))
     if cont_retr:
         print('Continuing retrieval called: %s' % config_file['metadata']['retrieval_id'])
     else:
