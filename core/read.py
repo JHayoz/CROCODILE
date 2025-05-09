@@ -16,21 +16,21 @@ def create_dir(path):
     dir_path.mkdir(exist_ok=True,parents=True)
     return 
 
-def read_samples(config_file):
-    samples_path = Path(config_file['metadata']['output_dir']) / 'SAMPLESpos.pickle'
+def read_samples(filname):
+    samples_path = Path(filname)
     if not samples_path.exists():
         print('No samples found for this retrieval')
         return None
     with open(samples_path,'rb') as f:
         samples = pickle.load(f)
     return samples
-def retrieve_samples(config_file):
+def retrieve_samples(config_file,output_dir):
     
     range_prior,_,_ = read_forward_model_from_config(config_file,params=[],params_names=[],extract_param=False)
     params_names = list(range_prior.keys())
     
     n_params = len(params_names)
-    OUTPUT_DIR = config_file['metadata']['output_dir'] + '/'
+    OUTPUT_DIR = str(Path(output_dir)) + '/'
     
     # create analyzer object
     a = pymultinest.Analyzer(n_params, outputfiles_basename = OUTPUT_DIR)
@@ -40,9 +40,9 @@ def retrieve_samples(config_file):
     samples = np.array(a.get_equal_weighted_posterior())[:,:-1]
     
     return samples
-def save_samples(samples,config_file,overwrite=False):
-    OUTPUT_DIR = config_file['metadata']['output_dir'] + '/'
-    samples_path = Path(config_file['metadata']['output_dir']) / 'SAMPLESpos.pickle'
+
+def save_samples(samples,output_dir,overwrite=False):
+    samples_path = Path(output_dir) / 'SAMPLESpos.pickle'
     if (not samples_path.exists()) or overwrite:
         f = open(samples_path,'wb')
         pickle.dump(samples,f)
@@ -86,7 +86,21 @@ def read_forward_model_from_config(config_file,params,params_names,extract_param
                 else:
                     print('Only constant abundance profiles are currently taken into account')
         elif config_file['retrieval']['FM']['chemistry']['model'] == 'chem_equ':
-            print('chem_equ model not yet taken into account')
+            chem_equ_params = ['C/O','FeHs','log_Pquench_carbon']
+            for param in chem_equ_params:
+                if param in config_file['retrieval']['FM']['chemistry']['parameters'].keys():
+                    parameter_data=config_file['retrieval']['FM']['chemistry']['parameters'][param]
+                    if isinstance(parameter_data,list):
+                        create_prior_from_parameter(
+                            param=param,
+                            parameter_data=parameter_data,
+                            RANGE=RANGE,
+                            LOG_PRIORS=LOG_PRIORS,
+                            CUBE_PRIORS=CUBE_PRIORS)
+                        if extract_param:
+                            chem_params[param] = params[params_names.index(param)]
+                    else:
+                        chem_params[param] = parameter_data
         # p-T
         if config_file['retrieval']['FM']['p-T']['model'] == 'guillot':
             guillot_params = ['t_equ','t_int','log_kappa_IR','log_gamma','P0']#,'log_gravity']

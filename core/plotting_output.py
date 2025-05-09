@@ -356,7 +356,13 @@ def plot_retrieved_spectra(
     ax = plt.subplot(nb_plots,1,1)
     
     # ax = fig.axes[0]
-    ax.set_xlim((np.min(wlen_arr),np.max(wlen_arr)))
+    min_x,max_x = np.min(wlen_arr),np.max(wlen_arr)
+    if max_x - min_x > 10:
+        xscale='log'
+    else:
+        xscale='linear'
+    
+    ax.set_xlim((min_x,max_x))
     for instr in PHOT_flux.keys():
         ax.plot(filt[instr][0],filt[instr][1],color=rgba[instr])
     
@@ -368,6 +374,7 @@ def plot_retrieved_spectra(
         ax.set_title(title,fontsize=fontsize)
     ax.set_xlabel(wvl_label,fontsize=fontsize)
     ax.set_ylabel(filter_label,fontsize=fontsize)
+    ax.set_xscale(xscale)
     
     ax = plt.subplot(nb_plots,1,(2,3))
     ax.fill_between(x=wlen_arr,y1=flux_quantiles[0],y2=flux_quantiles[2],alpha=0.5,color='grey')
@@ -375,7 +382,7 @@ def plot_retrieved_spectra(
     ax.set_xlim((np.min(wlen_arr),np.max(wlen_arr)))
     
     for instr in RES_data_wlen.keys():
-        ax.errorbar(x=wlen_RES[instr],y=RES_data_flux[instr],yerr=flux_data_std[instr],fmt='|',label=instr)
+        ax.errorbar(x=RES_data_wlen[instr],y=RES_data_flux[instr],yerr=flux_data_std[instr],fmt='|',label=instr)
         ax.scatter(x=wlen_RES[instr],y=flux_RES[instr],s=1,color='r')
     
     for instr in PHOT_flux.keys():
@@ -386,18 +393,22 @@ def plot_retrieved_spectra(
     ax.legend()
     ax.set_xlabel(wvl_label,fontsize=fontsize)
     ax.set_ylabel(flux_label,fontsize=fontsize)
+    ax.set_xscale(xscale)
     
     ax = plt.subplot(nb_plots,1,nb_plots)
     
     for instr in RES_data_wlen.keys():
         residual = (flux_RES[instr]-RES_data_flux[instr])/flux_data_std[instr]
-        ax.scatter(x=wlen_RES[instr],y=residual,s=1,color='r')
+        ax.scatter(x=wlen_RES[instr],y=residual,s=1,color='r',label=instr)
     for instr in PHOT_flux.keys():
         residual = (model_photometry[instr]-PHOT_flux[instr])/PHOT_flux_err[instr]
         ax.scatter(x=filt_mid[instr],y=residual,s=1,color='r')
     for std in np.arange(-3,4,3):
         ax.axhline(std,color='k',ls=':',alpha=0.5)
     ax.set_xlim((np.min(wlen_arr),np.max(wlen_arr)))
+    plt.xlabel(wvl_label,fontsize=fontsize)
+    plt.ylabel(r'Residual [$\sigma$]')
+    ax.set_xscale(xscale)
     plt.tight_layout()
     plt.legend()
     
@@ -408,14 +419,14 @@ def plot_retrieved_spectra(
 
     # plot for cont-removed data
     if len(CC_data_wlen.keys()) > 0:
-        fig=plt.figure(figsize=(10,8))
+        fig=plt.figure(figsize=(15,5))
         for instr in CC_data_wlen.keys():
             plt.plot(CC_data_wlen[instr],CC_data_flux[instr]/np.std(CC_data_flux[instr]),label=instr)
             plt.plot(wlen_CC[instr],flux_CC[instr]/np.std(flux_CC[instr]),'r')
         plt.legend()
-        lim_low = np.min([CC_data_wlen[instr][0] for instr in CC_data_wlen.keys()])
-        lim_high = np.max([CC_data_wlen[instr][0] for instr in CC_data_wlen.keys()])
-        plt.xlim((lim_low,lim_high))
+        # lim_low = np.min([CC_data_wlen[instr][0] for instr in CC_data_wlen.keys()])
+        # lim_high = np.max([CC_data_wlen[instr][-1] for instr in CC_data_wlen.keys()])
+        # plt.xlim((lim_low,lim_high))
         plt.xlabel(wvl_label,fontsize=fontsize)
         plt.ylabel('Flux (a.u.)',fontsize=fontsize)
         if title is not None:
@@ -429,17 +440,18 @@ def plot_retrieved_spectra(
         plt.figure()
         for instr in CC_data_wlen.keys():
             # extend range of model
-            extend_wvl_bins = 200
             wvl_stepsize=np.mean(wlen_CC[instr][1:]-wlen_CC[instr][:-1])
-            wlen_low = np.arange(-extend_wvl_bins*wvl_stepsize,0,wvl_stepsize)
-            wlen_high = np.arange(wvl_stepsize,(extend_wvl_bins+1)*wvl_stepsize,wvl_stepsize)
-            new_wlen_CC = np.hstack([wlen_low,wlen_CC[instr],wlen_high])
+            extend_wvl_bins=int(0.1/wvl_stepsize)
+            wlen_low = np.arange(wlen_CC[instr][0]-extend_wvl_bins*wvl_stepsize,wlen_CC[instr][0],wvl_stepsize)
+            wlen_high = np.arange(wlen_CC[instr][-1]+wvl_stepsize,wlen_CC[instr][-1]+(extend_wvl_bins+1)*wvl_stepsize,wvl_stepsize)
+            new_wlen_CC = np.hstack([wlen_low,wlen_CC[instr],wlen_high]).flatten()
             new_flux_CC = np.zeros_like(new_wlen_CC)
-            new_flux_CC[new_wlen_CC==wlen_CC[instr]] = flux_CC[instr]
+            new_flux_CC[np.isin(new_wlen_CC,wlen_CC[instr])] = flux_CC[instr]
             
             drv,ccf = crosscorrRV(CC_data_wlen[instr],CC_data_flux[instr],new_wlen_CC,new_flux_CC,rvmin=-rv_range,rvmax=rv_range,drv=drv_step)
             sf2 = np.sum(flux_CC[instr]**2)
-            plt.plot(drv,2*ccf-data_sf2-sf2,label=instr)
+            # plt.plot(drv,2*ccf-data_sf2[instr]-sf2,label=instr)
+            plt.plot(drv,ccf/np.std(ccf),label=instr)
         plt.legend()
         plt.xlabel(wvl_label,fontsize=fontsize)
         plt.ylabel('CCF (a.u.)',fontsize=fontsize)
@@ -448,6 +460,57 @@ def plot_retrieved_spectra(
         if save_plot:
             plt.savefig(save_file_CCF,dpi=300)
         plt.show()
+    
+    # one plot per RES dataset to see how good the fit is more closely
+
+    if len(CC_data_wlen.keys()) > 0:
+        
+        for instr in CC_data_wlen.keys():
+            fig=plt.figure(figsize=(15,5))
+            plt.plot(CC_data_wlen[instr],CC_data_flux[instr]/np.std(CC_data_flux[instr]),label=instr)
+            plt.plot(wlen_CC[instr],flux_CC[instr]/np.std(flux_CC[instr]),'r')
+            plt.legend()
+            # lim_low = np.min([CC_data_wlen[instr][0] for instr in CC_data_wlen.keys()])
+            # lim_high = np.max([CC_data_wlen[instr][-1] for instr in CC_data_wlen.keys()])
+            # plt.xlim((lim_low,lim_high))
+            plt.xlabel(wvl_label,fontsize=fontsize)
+            plt.ylabel('Flux (a.u.)',fontsize=fontsize)
+            if title is not None:
+                plt.title(title + instr,fontsize=fontsize)
+            if save_plot:
+                save_file_path = Path(save_file_contrem)
+                save_file_path_new = str(save_file_path.parent / save_file_path.stem) + ('_%s' % instr) + str(save_file_path.suffix)
+                plt.savefig(save_file_path_new,dpi=300)
+            plt.show()
+    
+    for res_instr in RES_data_wlen.keys():
+        fig=plt.figure(figsize=(15,5))
+        ax = plt.gca()
+        # data
+        ax.errorbar(x=RES_data_wlen[res_instr],y=RES_data_flux[res_instr],yerr=flux_data_std[res_instr],fmt='|',label=res_instr)
+        ax.scatter(x=wlen_RES[res_instr],y=flux_RES[res_instr],s=1,color='r')
+        
+        # photometry
+        for phot_instr in PHOT_flux.keys():
+            ax.errorbar(x=filt_mid[phot_instr],y=PHOT_flux[phot_instr],xerr=filt_width[phot_instr]/2,
+                        yerr=PHOT_flux_err[phot_instr],color=rgba[phot_instr],zorder=10,marker='o',markersize=3)
+            ax.errorbar(x=filt_mid[phot_instr],y=model_photometry[phot_instr],
+                        xerr=filt_width[phot_instr]/2,color='r',zorder=10,marker='o',markersize=3)
+        # model
+        ax.fill_between(x=wlen_arr,y1=flux_quantiles[0],y2=flux_quantiles[2],alpha=0.5,color='grey')
+        ax.plot(wlen_arr,flux_median,'k',lw=0.5)
+        
+        ax.legend()
+        ax.set_xlabel(wvl_label,fontsize=fontsize)
+        ax.set_ylabel(flux_label,fontsize=fontsize)
+        ax.set_xlim((np.min(RES_data_wlen[res_instr]),np.max(RES_data_wlen[res_instr])))
+        
+        if save_plot:
+            save_file_path = Path(save_file_SED)
+            save_file_path_new = str(save_file_path.parent / save_file_path.stem) + ('_%s' % res_instr) + str(save_file_path.suffix)
+            plt.savefig(save_file_path_new,dpi=300)
+        plt.show()
+        
     
 def pick_sampled_spectra(
     samples,

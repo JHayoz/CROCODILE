@@ -17,15 +17,15 @@ from pathlib import Path
 
 from core.data import Data
 from core.priors import Prior
-from core.read import open_config,retrieve_samples,save_samples,create_dir
+from core.read import open_config,retrieve_samples,save_samples,create_dir,read_samples
 from core.retrievalClass import Retrieval
 from core.plotting_output import plot_corner,plot_CO_ratio,plot_FeH_ratio,plot_retrieved_temperature_profile,plot_retrieved_spectra
 
 print('... DONE')
 
-def main(config_file_path,output_dir):
+def main(config_file_path,retrieval_results_dir,plot_output_dir):
     
-    output_dir_path = str(Path(output_dir)) + '/'
+    output_dir_path = str(Path(plot_output_dir)) + '/'
     create_dir(output_dir_path)
     
     config_file=open_config(config_file_path)
@@ -59,12 +59,16 @@ def main(config_file_path,output_dir):
         save_plot=True)
     
     prior_obj = Prior(config_file)
-    
-    samples_path = Path(config_file['metadata']['output_dir']) / 'SAMPLESpos.pickle'
-    
-    samples = retrieve_samples(config_file)
-    
-    save_samples(samples,config_file,overwrite=False)
+    samples_file_path = Path(retrieval_results_dir + 'SAMPLESpos.pickle')
+    if samples_file_path.exists():
+        samples = read_samples(samples_file_path)
+    else:
+        samples = retrieve_samples(config_file,retrieval_results_dir)
+        
+        try:
+            save_samples(samples,retrieval_results_dir,overwrite=False)
+        except PermissionError:
+            print('You do not have the permission to save data here')
     
     print('Plotting cornerplot')
     plot_corner(
@@ -150,4 +154,4 @@ def main(config_file_path,output_dir):
     print('DONE')
     
 if __name__ == "__main__":
-    main(sys.argv[1],sys.argv[2])
+    main(sys.argv[1],sys.argv[2],sys.argv[3])
