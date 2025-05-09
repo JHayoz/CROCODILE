@@ -1,153 +1,154 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Aug  6 13:00:49 2021
+Created on Fri May 09 2025
 
-@author: jeanh
+@author: Jean Hayoz
 """
+print('Starting imports')
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import json
-import numpy as np
-import scipy.stats, scipy
-import pymultinest
-import pickle
-
-from core.plotting import plot_corner,plot_retrieved_temperature_profile,plot_CO_ratio,plot_retrieved_abunds,plot_retrieved_spectra_FM_dico
-from core.data import Data
-from core.retrievalClass import Retrieval
-from core.forward_model import ForwardModel
-#from core.util import *
-#from core.rebin import *
-#from core.plot_errorbars_abundances import Posterior_Classification_Errorbars,compute_model_line,compute_SSG_errorbars
-
-#matplotlib.rcParams['agg.path.chunksize'] = 10000
-
-IPAGATE_ROUTE = '/home/ipa/quanz/user_accounts/jhayoz/Projects/'
-retrieval = 'My_spectrum_v01_01_CROC'
-sim_data_input = 'My_spectrum_v01'
-input_dir = IPAGATE_ROUTE + 'Quick_spectra/'+sim_data_input+'/'+retrieval
-input_dir = '/scratch/jhayoz/RunningJobs/My_spectrum_v01_chem_equ_CROC'
-
-BAYESIAN_METHOD = 'pymultinest'
-
-output_dir = input_dir + '/' 
-
-with open(input_dir + '/SAMPLESpos.pickle','rb') as f:
-    samples = pickle.load(f)
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
 
 import sys
-sys.path.append(input_dir)
-from config import *
+import numpy as np
+import pandas as pd
+from glob import glob
+from pathlib import Path
 
-fontsize=12
-lw=0.8
-figsize=(8,5)
+from core.data import Data
+from core.priors import Prior
+from core.read import open_config,retrieve_samples,save_samples,create_dir
+from core.retrievalClass import Retrieval
+from core.plotting_output import plot_corner,plot_CO_ratio,plot_FeH_ratio,plot_retrieved_temperature_profile,plot_retrieved_spectra
 
-PLOT_ALL = True
+print('... DONE')
 
-if PLOT_ALL:
+def main(config_file_path,output_dir):
     
+    output_dir_path = str(Path(output_dir)) + '/'
+    create_dir(output_dir_path)
+    
+    config_file=open_config(config_file_path)
+    retrieval_id = config_file['metadata']['retrieval_id']
+    savefile_prefix = output_dir_path + retrieval_id + '_'
+    
+    print('#####################################################')
+    print()
+    print('Analysing results of retrieval %s' % retrieval_id)
+    print('Saving plots under %s' % savefile_prefix)
+    print()
+    print('#####################################################')
+    
+    # load data
+    print('Loading data')
+    data_obj = Data(
+        photometry_file = config_file['data']['photometry'],
+        spectroscopy_files = config_file['data']['spectroscopy']['calib'],
+        contrem_spectroscopy_files = config_file['data']['spectroscopy']['contrem'],
+        photometry_filter_dir = config_file['data']['filters'])
+    
+    print('Plotting data')
+    fig=data_obj.plot(
+        config=config_file,
+        output_dir=savefile_prefix + '00_data.png',
+        plot_name = 'data',
+        title = 'Data for retrieval %s' % config_file['metadata']['retrieval_id'],
+        inset_plot=False,
+        plot_errorbars=False,
+        save_plot=True)
+    
+    prior_obj = Prior(config_file)
+    
+    samples_path = Path(config_file['metadata']['output_dir']) / 'SAMPLESpos.pickle'
+    
+    samples = retrieve_samples(config_file)
+    
+    save_samples(samples,config_file,overwrite=False)
+    
+    print('Plotting cornerplot')
     plot_corner(
-        CONFIG_DICT,
+        config_file,
         samples,
         param_range = None,
         percent_considered = 0.90,
-        output_file = output_dir,
-        fontsize=fontsize,
+        output_file = savefile_prefix + '01_corner.png',
+        fontsize=12,
         include_abunds = True,
-        title = None,
-        plot_format = 'pdf')
+        title = 'Retrieval',
+        plot_format = 'png',
+        save_plot=True)
     
-    plot_corner(
-        CONFIG_DICT,
-        samples,
-        param_range = None,
-        percent_considered = 0.90,
-        output_file = output_dir,
-        fontsize=fontsize,
-        include_abunds = False,
-        title = None,
-        plot_format = 'pdf')
-    
-    plot_retrieved_temperature_profile(
-        CONFIG_DICT,
-        samples,
-        output_file = output_dir,
-        nb_stds = 3,
-        fontsize = fontsize,
-        lw = lw,
-        figsize=figsize,
-        color = 'g',
-        title='Thermal profile',
-        ax = None)
-    if 'C/O' not in CONFIG_DICT['PARAMS_NAMES']:
+    if config_file['retrieval']['FM']['chemistry']['model'] == 'free':
+        print('Plotting C/O ratio')
         plot_CO_ratio(
-            CONFIG_DICT,
+            config_file,
             samples,
             percent_considered = 1.,
             abundances_considered = 'all',
-            output_file = output_dir,
-            fontsize = fontsize,
-            lw = lw,
-            figsize=figsize,
+            output_file = savefile_prefix + '02_COratio.png',
+            fontsize = 10,
+            lw = 0.5,
+            figsize=(3,3),
             color = 'g',
+            label='C/O$=$',
+            include_quantiles = True,
             title='C/O ratio',
-            ax = None)
-        
-        plot_retrieved_abunds(
-            CONFIG_DICT,
+            ax = None,
+            save_plot = True)
+        print('Plotting Fe/H ratio')
+        plot_FeH_ratio(
+            config_file,
             samples,
-            pressure_distr = None,
-            output_dir = output_dir,
-            nb_stds = 0,
-            fontsize = fontsize,
-            lw =lw,
-            figsize=(8,4),
-            xlim = [-10,0],
-            title='Molecular abundance profiles',
-            add_xlabel = True,
-            add_ylabel = True,
-            add_legend = True,
-            errorbar_color = None,
-            plot_marker = False,
-            ax = None)
-
-data_obj = Data(
-    data_dir = SIM_DATA_DIR,
-    use_sim_files = USE_SIM_DATA,
-    PHOT_flux_format = 4,
-    PHOT_filter_dir = PHOT_DATA_FILTER_FILE,
-    PHOT_flux_dir = PHOT_DATA_FLUX_FILE,
-    CC_data_dir=CC_DATA_FILE,
-    RES_data_dir=RES_DATA_FILE,
-    RES_err_dir=RES_ERR_FILE)
-
-prior_obj = None
-print('CONFIGURATION')
-for key in CONFIG_DICT.keys():
-    print(key,': ',CONFIG_DICT[key])
-
-retrieval = Retrieval(
-    data_obj,
-    prior_obj,
-    config=CONFIG_DICT,
-    chem_model=CHEM_MODEL, # or chem_equ
-    temp_model=TEMP_MODEL,
-    cloud_model=CLOUD_MODEL,
-    retrieval_name = RETRIEVAL_NAME,
-    output_path = OUTPUT_DIR,
-    plotting=PLOTTING,
-    printing=PRINTING,
-    timing=TIMING,
-    for_analysis=True)
-
-wlen_CC,flux_CC,wlen_RES,flux_RES,photometry = plot_retrieved_spectra_FM_dico(
+            percent_considered = 1.,
+            abundances_considered = 'all',
+            output_file = savefile_prefix + '03_FeHratio.png',
+            fontsize = 10,
+            lw = 0.5,
+            figsize=(3,3),
+            color = 'g',
+            label='[Fe/H]$=$',
+            include_quantiles = True,
+            title='[Fe/H]',
+            ax = None,
+            save_plot = True)
+    
+    print('Plotting p-T profile')
+    plot_retrieved_temperature_profile(
+        config_file,
+        samples,
+        output_file=savefile_prefix + '04_pTprofile.png',
+        nb_stds = 3,
+        fontsize = 10,
+        lw = 0.5,
+        figsize=(6,4),
+        color = 'g',
+        label='T$_{\mathrm{equ}}=$',
+        plot_data = True,
+        plot_label=True,
+        title='Thermal profile',
+        ax = None,
+        save_plot = True)
+    
+    print('Loading retrieval object')
+    retrieval = Retrieval(
+        data_obj=data_obj,
+        prior_obj=prior_obj,
+        config_file=config_file,
+        for_analysis=True,
+        continue_retrieval = False)
+    
+    
+    print('Plotting retrieved SED')
+    plot_retrieved_spectra(
+        config_file,
         retrieval,
         samples,
-        output_file = output_dir,
-        title = 'Retrieved spectrum for '+RETRIEVAL_NAME+' '+VERSION,
-        show_random = None,
-        saving=True,
-        output_results = True)
+        nb_picks=5,
+        plot_format = 'png',
+        title='Retrieved spectrum',
+        save_plot = True,
+        output_file=savefile_prefix + '05_retrievedSED.png')
+    print('DONE')
+    
+if __name__ == "__main__":
+    main(sys.argv[1],sys.argv[2])

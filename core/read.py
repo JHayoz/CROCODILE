@@ -14,11 +14,6 @@ def open_config(path_config_dir):
 def create_dir(path):
     dir_path = Path(path)
     dir_path.mkdir(exist_ok=True,parents=True)
-    # if not os.path.exists(path):
-    #     try:
-    #         os.mkdir(path,)
-    #     except FileExistsError:
-    #         print('Avoided error')
     return 
 
 def read_samples(config_file):
