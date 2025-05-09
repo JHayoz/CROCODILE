@@ -682,35 +682,6 @@ def filter_relevant_mass_fractions(mass_fractions,mode):
             lbl_species_name = poor_mans_ck_and_lbl(species,'lbl')
             abundances_final[lbl_species_name] = abund_spec
         return abundances_final
-        
-    """
-    mol_abund = {}
-    for species in mass_fractions.keys():
-        if species not in ['MMW','nabla_ad']:
-            mol_abund[species] = mass_fractions[species]
-    
-    mol_abund_keys_ck = poor_mans_abunds_ck()
-    mol_abund_keys_lbl = poor_mans_abunds_lbl()
-    
-    abundances = {}
-    for key in mol_abund_keys_ck:
-        for key_lbl in mol_abund_keys_lbl:
-            if key == 'H2':
-                key_lbl = 'H2'
-                break
-            if key in key_lbl:
-                break
-        for species in mol_abund.keys():
-            if key in species:
-                if mode == 'c-k':
-                    abundances[key] = mol_abund[species]
-                else:
-                    abundances[key_lbl] = mol_abund[species]
-                break
-    
-    return abundances
-    """
-
 
 def trim_spectrum(wlen,flux,wlen_data,threshold=5000,keep=1000):
     wvl_stepsize = np.mean([wlen_data[i+1]-wlen_data[i] for i in range(len(wlen_data)-1)])

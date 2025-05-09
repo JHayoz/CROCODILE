@@ -46,7 +46,10 @@ class Retrieval:
         self.chem_model = self.config['retrieval']['FM']['chemistry']['model']
         self.temp_model = self.config['retrieval']['FM']['p-T']['model']
         self.cloud_model = self.config['retrieval']['FM']['clouds']['model']
-        self.abundances_lbl = list(self.config['retrieval']['FM']['chemistry']['parameters'].keys())
+        if self.chem_model == 'free':
+            self.abundances_lbl = list(self.config['retrieval']['FM']['chemistry']['parameters'].keys())
+        else:
+            self.abundances_lbl = POOR_MANS_ABUND_LBL
         self.abundances_ck = [name_lbl_to_ck(abund) for abund in self.abundances_lbl]
 
         self.params_names = self.prior_obj.params_names
