@@ -35,7 +35,8 @@ def main(config_file_path,output_dir):
     print('#####################################################')
     print()
     print('Analysing results of retrieval %s' % retrieval_id)
-    print('Saving plots under %s' % savefile_prefix)
+    print('Saving plots under %s' % output_dir_path)
+    print('using prefix %s' % str(Path(savefile_prefix).name))
     print()
     print('#####################################################')
     

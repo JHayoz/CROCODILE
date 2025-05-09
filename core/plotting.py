@@ -57,6 +57,9 @@ def plot_data(config,
              ):
     
     output_file_path = Path(output_file)
+    print('Plotting data')
+    print('Output dir: %s' % str(output_file_path))
+    print('Plot name: %s' % str(plot_name))
     # define labels
     wvl_label = 'Wavelength [$\mu$m]'
     filter_label = 'Filter trsm.'

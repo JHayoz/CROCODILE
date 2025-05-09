@@ -413,6 +413,9 @@ def plot_retrieved_spectra(
             plt.plot(CC_data_wlen[instr],CC_data_flux[instr]/np.std(CC_data_flux[instr]),label=instr)
             plt.plot(wlen_CC[instr],flux_CC[instr]/np.std(flux_CC[instr]),'r')
         plt.legend()
+        lim_low = np.min([CC_data_wlen[instr][0] for instr in CC_data_wlen.keys()])
+        lim_high = np.max([CC_data_wlen[instr][0] for instr in CC_data_wlen.keys()])
+        plt.xlim((lim_low,lim_high))
         plt.xlabel(wvl_label,fontsize=fontsize)
         plt.ylabel('Flux (a.u.)',fontsize=fontsize)
         if title is not None:
@@ -425,7 +428,16 @@ def plot_retrieved_spectra(
         rv_range,drv_step=500,0.5
         plt.figure()
         for instr in CC_data_wlen.keys():
-            drv,ccf = crosscorrRV(CC_data_wlen[instr],CC_data_flux[instr],wlen_CC[instr],flux_CC[instr],rvmin=-rv_range,rvmax=rv_range,drv=drv_step)
+            # extend range of model
+            extend_wvl_bins = 200
+            wvl_stepsize=np.mean(wlen_CC[instr][1:]-wlen_CC[instr][:-1])
+            wlen_low = np.arange(-extend_wvl_bins*wvl_stepsize,0,wvl_stepsize)
+            wlen_high = np.arange(wvl_stepsize,(extend_wvl_bins+1)*wvl_stepsize,wvl_stepsize)
+            new_wlen_CC = np.hstack([wlen_low,wlen_CC[instr],wlen_high])
+            new_flux_CC = np.zeros_like(new_wlen_CC)
+            new_flux_CC[new_wlen_CC==wlen_CC[instr]] = flux_CC[instr]
+            
+            drv,ccf = crosscorrRV(CC_data_wlen[instr],CC_data_flux[instr],new_wlen_CC,new_flux_CC,rvmin=-rv_range,rvmax=rv_range,drv=drv_step)
             sf2 = np.sum(flux_CC[instr]**2)
             plt.plot(drv,2*ccf-data_sf2-sf2,label=instr)
         plt.legend()
