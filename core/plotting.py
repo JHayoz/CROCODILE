@@ -195,7 +195,7 @@ def plot_data(config,
             except FileExistsError:
                 print('Error avoided')
         #fig.tight_layout()
-        fig.savefig(output_file_path/ ('%s.png' % plot_name),dpi=300,bbox_inches = 'tight',pad_inches = 0)
+        fig.savefig(output_file_path / ('%s.png' % plot_name),dpi=300,bbox_inches = 'tight',pad_inches = 0)
         #fig.savefig(output_file_path/ ('%s.pdf' % plot_name),dpi=300)#,bbox_inches = 'tight',pad_inches = 0)
     return fig
 

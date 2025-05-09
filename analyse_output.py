@@ -50,9 +50,9 @@ def main(config_file_path,output_dir):
     print('Plotting data')
     fig=data_obj.plot(
         config=config_file,
-        output_dir=savefile_prefix + '00_data.png',
-        plot_name = 'data',
-        title = 'Data for retrieval %s' % config_file['metadata']['retrieval_id'],
+        output_dir=output_dir_path,
+        plot_name = retrieval_id + '_' + '00_data',
+        title = 'Data for retrieval %s' % retrieval_id,
         inset_plot=False,
         plot_errorbars=False,
         save_plot=True)
@@ -74,8 +74,7 @@ def main(config_file_path,output_dir):
         output_file = savefile_prefix + '01_corner.png',
         fontsize=12,
         include_abunds = True,
-        title = 'Retrieval',
-        plot_format = 'png',
+        title = 'Corner for retrieval %s' % retrieval_id,
         save_plot=True)
     
     if config_file['retrieval']['FM']['chemistry']['model'] == 'free':
@@ -92,7 +91,7 @@ def main(config_file_path,output_dir):
             color = 'g',
             label='C/O$=$',
             include_quantiles = True,
-            title='C/O ratio',
+            title='C/O ratio for retrieval %s' % retrieval_id,
             ax = None,
             save_plot = True)
         print('Plotting Fe/H ratio')
@@ -108,7 +107,7 @@ def main(config_file_path,output_dir):
             color = 'g',
             label='[Fe/H]$=$',
             include_quantiles = True,
-            title='[Fe/H]',
+            title='Fe/H ratio for retrieval %s' % retrieval_id,
             ax = None,
             save_plot = True)
     
@@ -125,7 +124,7 @@ def main(config_file_path,output_dir):
         label='T$_{\mathrm{equ}}=$',
         plot_data = True,
         plot_label=True,
-        title='Thermal profile',
+        title='p-T for retrieval %s' % retrieval_id,
         ax = None,
         save_plot = True)
     
@@ -144,8 +143,7 @@ def main(config_file_path,output_dir):
         retrieval,
         samples,
         nb_picks=5,
-        plot_format = 'png',
-        title='Retrieved spectrum',
+        title='Retrieved SED for retrieval %s' % retrieval_id,
         save_plot = True,
         output_file=savefile_prefix + '05_retrievedSED.png')
     print('DONE')
