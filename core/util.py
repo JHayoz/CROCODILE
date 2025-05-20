@@ -684,25 +684,33 @@ def filter_relevant_mass_fractions(mass_fractions,mode):
         return abundances_final
 
 def trim_spectrum(wlen,flux,wlen_data,threshold=5000,keep=1000):
-    wvl_stepsize = np.mean([wlen_data[i+1]-wlen_data[i] for i in range(len(wlen_data)-1)])
-    nb_bins_left = int(abs(wlen_data[0]-wlen[0])/wvl_stepsize)
-    nb_bins_right = int(abs(wlen_data[-1]-wlen[-1])/wvl_stepsize)
-    cut_right=False
-    cut_left=False
-    nb_bins_to_cut_left,nb_bins_to_cut_right=0,0
-    if nb_bins_left >= threshold:
-        nb_bins_to_cut_left = nb_bins_left - keep
-        cut_left=True
-    if nb_bins_right >= threshold:
-        nb_bins_to_cut_right = nb_bins_right - keep
-        cut_right=True
-    if cut_right or cut_left:
-        CC_wlen_cut,CC_flux_cut = cut_spectrum(wlen,flux,nb_bins_to_cut_left,nb_bins_to_cut_right)
-        return CC_wlen_cut,CC_flux_cut
-    else:
-        return wlen,flux
+    mask_wlen = np.logical_and(np.array(wlen) >= wlen_data[0],np.array(wlen) <= wlen_data[-1])
     
-    
+    high_ind = np.min([len(wlen)-1,np.where(mask_wlen)[0][-1] + keep])
+    low_ind = np.max([0,np.where(mask_wlen)[0][0] - keep])
+    return wlen[low_ind:high_ind],flux[low_ind:high_ind]
+
+# def trim_spectrum(wlen,flux,wlen_data,threshold=5000,keep=1000):
+#     wvl_stepsize = np.mean([wlen_data[i+1]-wlen_data[i] for i in range(len(wlen_data)-1)])
+#     nb_bins_left = int(abs(wlen_data[0]-wlen[0])/wvl_stepsize)
+#     nb_bins_right = int(abs(wlen_data[-1]-wlen[-1])/wvl_stepsize)
+#     cut_right=False
+#     cut_left=False
+#     nb_bins_to_cut_left,nb_bins_to_cut_right=0,0
+#     if nb_bins_left >= threshold:
+#         nb_bins_to_cut_left = nb_bins_left - keep
+#         cut_left=True
+#     if nb_bins_right >= threshold:
+#         nb_bins_to_cut_right = nb_bins_right - keep
+#         cut_right=True
+#     if cut_right or cut_left:
+#         CC_wlen_cut,CC_flux_cut = cut_spectrum(wlen,flux,nb_bins_to_cut_left,nb_bins_to_cut_right)
+#         return CC_wlen_cut,CC_flux_cut
+#     else:
+#         return wlen,flux
+#     
+#     
+# 
 
 def cut_spectrum(wlen,flux,nb_bins_left,nb_bins_right):
     if nb_bins_left + nb_bins_right > len(wlen) or nb_bins_left + nb_bins_right == 0:

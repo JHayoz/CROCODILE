@@ -104,14 +104,15 @@ def free_chem_model(
         metal_sum += abundances[mol_name]
     
     abH2He = 1. - metal_sum
-    
+    abH2 = 0.766 # Solar value (as in Nasedkin et al. 2024)
+    abHe = 0.234
     if mode == 'lbl':
-        abundances['H2_main_iso'] = 0.75*abH2He
-        abundances['H2'] = 0.75*abH2He
+        abundances['H2_main_iso'] = abH2*abH2He
+        abundances['H2'] = abH2*abH2He
     else:
-        abundances['H2'] = 0.75*abH2He
+        abundances['H2'] = abH2*abH2He
     
-    abundances['He'] = 0.25*abH2He
+    abundances['He'] = abHe*abH2He
     
     return pressures,abundances
 
@@ -153,14 +154,16 @@ def free_chem_model_old(
         metal_sum += 1e1**chem_model_params[name]
     
     abH2He = 1. - metal_sum
-    
+    abH2 = 0.766 # Solar value (as in Nasedkin et al. 2024)
+    abHe = 0.234
     if mode == 'lbl':
-        abundances['H2_main_iso'] = abH2He*0.75 * np.ones_like(pressures)
-        abundances['H2'] = abH2He*0.75 * np.ones_like(pressures)
+        abundances['H2_main_iso'] = abH2*abH2He
+        abundances['H2'] = abH2*abH2He
     else:
-        abundances['H2'] = abH2He*0.75 * np.ones_like(pressures)
+        abundances['H2'] = abH2*abH2He
     
-    abundances['He'] = abH2He*0.25 * np.ones_like(pressures)
+    abundances['He'] = abHe*abH2He
+    
     return pressures,abundances
 
 def chem_equ_model(
@@ -196,7 +199,10 @@ def chem_equ_model(
         chem_model_params['log_Pquench_carbon'] = None
         Pquench_carbon=None
     else:
-        Pquench_carbon=10**chem_model_params['log_Pquench_carbon']
+        if chem_model_params['log_Pquench_carbon'] is None:
+            Pquench_carbon = None
+        else:
+            Pquench_carbon=10**chem_model_params['log_Pquench_carbon']
     mass_fractions = poor_mans_nonequ_chem.interpol_abundances(
         COs,
         FeHs,

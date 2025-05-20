@@ -391,19 +391,21 @@ class Retrieval:
         log_prior = 0.
         
         """Metal abundances: check that their summed mass fraction is below 1."""
-        metal_sum = 0.
-        for param_name in chem_params.keys():
-            if param_name in self.params_names:
-                log_prior += self.prior_obj.log_priors[param_name](chem_params[param_name])
-            if not param_name in ['C/O','FeHs']:
-                abund,model,param_nb = param_name.split('___')
-                if model == 'constant':
-                    metal_sum += 1e1**chem_params[param_name]
-                else:
-                    print('Only constant abundance profiles are currently taken into account')
-        
-        if metal_sum > 1.:
-            log_prior += -1e299
+        # only applies for the free chem model
+        if self.chem_model == 'free':
+            metal_sum = 0.
+            for param_name in chem_params.keys():
+                if param_name in self.params_names:
+                    log_prior += self.prior_obj.log_priors[param_name](chem_params[param_name])
+                if not param_name in ['C/O','FeHs','log_Pquench_carbon']:
+                    abund,model,param_nb = param_name.split('___')
+                    if model == 'constant':
+                        metal_sum += 1e1**chem_params[param_name]
+                    else:
+                        print('Only constant abundance profiles are currently taken into account')
+            
+            if metal_sum > 1.:
+                log_prior += -1e299
         
         """prior of other parameters"""
         for param_name in self.params_names:
