@@ -4,7 +4,8 @@ from scipy.interpolate import interp1d
 from scipy.special import erfcinv
 from scipy.stats import truncnorm,skewnorm,gaussian_kde,norm
 from scipy.optimize import curve_fit
-
+SQRT2 = sqrt(2.)
+SQRT2PI = sqrt(2*pi)
 # log(0) outside [a,b], else log(1)
 def a_b_range(x,arr):
     a,b = arr
