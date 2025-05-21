@@ -14,8 +14,8 @@ import numpy as np
 import json
 import sys
 
-from config_petitRADTRANS import *
-os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
+# from config_petitRADTRANS import *
+# os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 
 from core.priors import Prior
 from core.data import Data

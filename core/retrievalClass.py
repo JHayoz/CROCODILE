@@ -13,13 +13,13 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 import os
-from config_petitRADTRANS import *
-os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 from os import path
+
 # from petitRADTRANS import radtrans as rt
 # from petitRADTRANS import nat_cst as nc
 # from petitRADTRANS import physics
 
+from config_petitRADTRANS import *
 from core.util import name_lbl_to_ck,convert_units
 from core.read import read_forward_model_from_config
 from core.forward_model import ForwardModel

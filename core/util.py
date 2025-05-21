@@ -9,23 +9,17 @@ import numpy as np
 import os
 import re
 from mendeleev import element
-from config_petitRADTRANS import *
-os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
 import sys
-
 from PyAstronomy.pyasl import crosscorrRV,fastRotBroad,rotBroad
 import scipy.constants as cst
 from scipy.interpolate import interp1d
 from scipy.special import erfcinv
 from scipy.stats import truncnorm,skewnorm,gaussian_kde,norm
 from scipy.optimize import curve_fit
+from itertools import product
 
 from config_petitRADTRANS import *
 
-from itertools import product
-
-
-#from config import *
 RADIUS_J = 69911*1000
 MASS_J = 1.898*1e27
 mlower = 3e-4
