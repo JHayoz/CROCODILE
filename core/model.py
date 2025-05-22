@@ -8,6 +8,9 @@ Created on Fri May 28 10:15:36 2021
 import numpy as np
 import sys
 from scipy.constants import c as speed_c
+from dust_extinction.parameter_averages import G23
+from astropy import units as u
+
 import petitRADTRANS as rt
 from petitRADTRANS import physics
 from petitRADTRANS.poor_mans_nonequ_chem import *
@@ -350,6 +353,13 @@ def evaluate_forward_model(
                      gravity=1e1**physical_params['log_gravity'],
                      clouds_params=cloud_model_params,
                      contribution=calc_contribution)
+    
+    # if 'extinction' in physical_params:
+    #     print('Using extinction')
+    #     # define the model
+    #     extinction = get_extinction(wlen*1e4,Av=physical_params['extinction'])
+    #     flux = extinction*flux
+    
     return wlen,flux,pressures,temperatures,abundances,contr_em
 
 def calc_MMW(

@@ -44,6 +44,10 @@ def main(config_file_path,continue_retrieval):
         contrem_spectroscopy_files = config_file['data']['spectroscopy']['contrem'],
         photometry_filter_dir = config_file['data']['filters'])
     
+    if 'extinction' in config_file['data'].keys():
+        if not config_file['data']['extinction'] is None:
+            data_obj.deredden_all_data(Av=config_file['data']['extinction'])
+    
     fig=data_obj.plot(
         config=config_file,
         output_dir=OUTPUT_DIR,

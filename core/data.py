@@ -14,7 +14,7 @@ from pathlib import Path
 import os
 from itertools import combinations
 from .plotting import plot_data
-from .util import *
+from .util import get_extinction
 
 class Data:
     def __init__(
@@ -128,6 +128,31 @@ class Data:
             self.PHOT_data_filter[db_name] = [filter_info['filter_profile']['wlen'],filter_info['filter_profile']['trsm']]
             self.PHOT_filter_function[db_name] = interp1d(self.PHOT_data_filter[db_name][0],self.PHOT_data_filter[db_name][1],bounds_error=False,fill_value=0.)
         return
+
+    def deredden_all_data(self,Av):
+        print('Dereddening all data by Av=%.2f' % Av)
+        # CC data
+        for instr in self.CC_data_wlen.keys():
+            print('Dereddening %s' % instr)
+            extinction = get_extinction(self.CC_data_wlen[instr],Av)
+            self.CC_data_flux[instr] = self.CC_data_flux[instr]/extinction
+            self.CC_data_sf2[instr]  = 1./len(self.CC_data_wlen[instr])*np.sum(self.CC_data_flux[instr]**2)
+        # RES data
+        for instr in self.RES_data_wlen.keys():
+            print('Dereddening %s' % instr)
+            extinction = get_extinction(self.RES_data_wlen[instr],Av)
+            self.RES_data_flux[instr] = self.RES_data_flux[instr]/extinction
+            self.RES_data_flux_err[instr] = self.RES_data_flux_err[instr]*(1./extinction)
+            self.RES_cov_err[instr] = self.RES_cov_err[instr]*(1./extinction)**2
+            self.RES_inv_cov[instr] = self.RES_inv_cov[instr]/(1./extinction)**2
+        # PHOT data
+        for instr in self.PHOT_data_flux.keys():
+            print('Dereddening %s' % instr)
+            extinction = get_extinction(self.PHOT_filter_midpoint[instr],Av)
+            self.PHOT_data_flux[instr] = self.PHOT_data_flux[instr]/extinction
+            self.PHOT_data_err[instr] = self.PHOT_data_err[instr]/extinction
+        print('Done!')
+            
     
     def getCCSpectrum(self):
         return self.CC_data_wlen,self.CC_data_flux

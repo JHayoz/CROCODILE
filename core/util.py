@@ -17,6 +17,8 @@ from scipy.special import erfcinv
 from scipy.stats import truncnorm,skewnorm,gaussian_kde,norm
 from scipy.optimize import curve_fit
 from itertools import product
+from dust_extinction.parameter_averages import G23
+from astropy import units as u
 
 from config_petitRADTRANS import *
 
@@ -198,6 +200,12 @@ def nice_name(molecule):
         else:
             final_string += char
     return final_string
+
+def set_const_abundance_param(chem_model_params,abund,val):
+    abund,model,param_i = abund,'constant','param_0'
+    param = '___'.join([abund,model,param_i])
+    chem_model_params[param]=val
+    return chem_model_params
 
 def get_abundance_params(config_file):
     abundances_names = []
@@ -784,6 +792,10 @@ def filter_position(PHOT_midpoint):
         filter_position_i += 1
     return filter_pos
 
+def get_extinction(wlen,Av):
+    extmod = G23(Rv=3.1)
+    extinction = extmod.extinguish(wlen*u.micron,Av=Av)
+    return extinction
 
 def calc_retrieved_params(config,samples):
     params_names = config['PARAMS_NAMES']
