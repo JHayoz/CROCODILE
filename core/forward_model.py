@@ -87,12 +87,12 @@ class ForwardModel:
         self.only_include = only_include
         if include_H2:
             self.line_opacities += ['H2_main_iso']
-        if cloud_model == 'grey_deck' or cloud_model is None:
-            self.cloud_species =  []
-            self.do_scat_emis = False
-        else:
+        if cloud_model == 'ackermann':
             self.cloud_species = cloud_species
             self.do_scat_emis = do_scat_emis
+        else:
+            self.cloud_species =  []
+            self.do_scat_emis = False
         self.continuum_opacities =  cont_opacities
         self.rayleigh_scatterers = rayleigh_scat
         self.cloud_model = cloud_model
@@ -119,8 +119,6 @@ class ForwardModel:
         self.rt_obj = None
         
         print('Forward model setup with {model} model and {mode} mode'.format(model=self.chem_model,mode=self.mode))
-        if self.cloud_model is not None:
-            print('USING CLOUDS WITH MODEL {model} AND CLOUD SPECIES {species}'.format(model = self.cloud_model,species=cloud_species))
         
         return
     
@@ -170,6 +168,7 @@ class ForwardModel:
             lbl_sampling = None
         print('wlen borders: ',self.wlen_borders)
         print('Line species included: ',self.line_opacities)
+        print('Cloud species included: ',self.cloud_species)
         line_opacities_to_use = self.line_opacities
         if 'He' in line_opacities_to_use:
             line_opacities_to_use.remove('He')
@@ -181,7 +180,7 @@ class ForwardModel:
                               continuum_opacities = self.continuum_opacities,
                               mode = self.mode,
                               wlen_bords_micron = self.wlen_borders,
-                              cloud_species = self.cloud_species,
+                              cloud_species = self.cloud_species.copy(),
                               do_scat_emis = self.do_scat_emis,
                               lbl_opacity_sampling = lbl_sampling)
         

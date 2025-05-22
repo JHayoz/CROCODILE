@@ -420,13 +420,11 @@ def rt_obj_calc_flux(
     
     Pcloud = None
     if 'log_Pcloud' in clouds_params.keys():
-        print('CAREFUL: YOU ARE USING CLOUDS')
         Pcloud = 10**clouds_params['log_Pcloud']
     
     kzz,fsed,sigma_lnorm = None,None,None
     add_cloud_scat_as_abs = False
     if 'log_kzz' in clouds_params.keys() and 'fsed' in clouds_params.keys() and 'sigma_lnorm' in clouds_params.keys() and 'cloud_abunds' in clouds_params.keys():
-        print('CAREFUL: YOU ARE USING CLOUDS')
         kzz = 10**clouds_params['log_kzz']*np.ones_like(temperatures)
         fsed = clouds_params['fsed']
         sigma_lnorm = clouds_params['sigma_lnorm']

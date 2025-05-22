@@ -104,7 +104,10 @@ class Retrieval:
         if self.data_obj.ck_FM_interval is not None:
             print('CALLING FORWARD MODEL WITH C-K MODE')
             wlen_borders_ck = self.data_obj.ck_FM_interval
-            
+            if self.config['retrieval']['FM']['clouds']['opacities'] is None:
+                cloud_species = None
+            else:
+                cloud_species = self.config['retrieval']['FM']['clouds']['opacities'].copy()
             self.forwardmodel_ck = ForwardModel(
                  wlen_borders = wlen_borders_ck,
                  max_wlen_stepsize = wlen_borders_ck[1]/1000,
@@ -113,7 +116,7 @@ class Retrieval:
                  cont_opacities= ['H2-H2','H2-He'],
                  rayleigh_scat = ['H2','He'],
                  cloud_model = self.cloud_model,
-                 cloud_species = self.config['retrieval']['FM']['clouds']['opacities'],
+                 cloud_species = cloud_species,
                  do_scat_emis = self.config['retrieval']['FM']['clouds']['scattering_emission'],
                  chem_model = self.chem_model,
                  temp_model = self.temp_model,
@@ -135,6 +138,11 @@ class Retrieval:
                 
                 win_len = self.config['hyperparameters']['CC']['filter_size']/1e3/max_wlen_stepsize # in wvl channel
                 
+                if self.config['retrieval']['FM']['clouds']['opacities'] is None:
+                    cloud_species = None
+                else:
+                    cloud_species = self.config['retrieval']['FM']['clouds']['opacities'].copy()
+                
                 self.forwardmodel_lbl[interval_key] = ForwardModel(
                      wlen_borders = wlen_borders_lbl,
                      max_wlen_stepsize = max_wlen_stepsize,
@@ -143,7 +151,7 @@ class Retrieval:
                      cont_opacities= ['H2-H2','H2-He'],
                      rayleigh_scat = ['H2','He'],
                      cloud_model = self.cloud_model,
-                     cloud_species = self.config['retrieval']['FM']['clouds']['opacities'],
+                     cloud_species = cloud_species,
                      do_scat_emis = self.config['retrieval']['FM']['clouds']['scattering_emission'],
                      chem_model = self.chem_model,
                      temp_model = self.temp_model,

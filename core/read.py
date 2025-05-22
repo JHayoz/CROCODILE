@@ -120,7 +120,56 @@ def read_forward_model_from_config(config_file,params,params_names,extract_param
                         temp_params[param] = parameter_data
         # clouds
         if config_file['retrieval']['FM']['clouds']['model'] == 'ackermann':
-            print('Ackermann model not yet taken into account')
+            ackermann_params = ['sigma_lnorm','fsed','log_kzz']
+            for param in ackermann_params:
+                if param in config_file['retrieval']['FM']['clouds']['parameters'].keys():
+                    parameter_data=config_file['retrieval']['FM']['clouds']['parameters'][param]
+                    if isinstance(parameter_data,list):
+                        create_prior_from_parameter(
+                            param=param,
+                            parameter_data=parameter_data,
+                            RANGE=RANGE,
+                            LOG_PRIORS=LOG_PRIORS,
+                            CUBE_PRIORS=CUBE_PRIORS)
+                        if extract_param:
+                            clouds_params[param] = params[params_names.index(param)]
+                    else:
+                        clouds_params[param] = parameter_data
+            # cloud abundances
+            clouds_params['cloud_abunds'] = {}
+            for param in config_file['retrieval']['FM']['clouds']['opacities']:
+                if param in config_file['retrieval']['FM']['clouds']['parameters'].keys():
+                    cloud_param_name = param.split('_')[0] # cloud opacities are always called Mg2SiO4(c)_cm but their abundances are called Mg2SiO4(c)
+                    parameter_data=config_file['retrieval']['FM']['clouds']['parameters'][param]
+                    if isinstance(parameter_data,list):
+                        create_prior_from_parameter(
+                            param=param,
+                            parameter_data=parameter_data,
+                            RANGE=RANGE,
+                            LOG_PRIORS=LOG_PRIORS,
+                            CUBE_PRIORS=CUBE_PRIORS)
+                        if extract_param:
+                            clouds_params['cloud_abunds'][cloud_param_name] = params[params_names.index(param)]
+                    else:
+                        clouds_params['cloud_abunds'][cloud_param_name] = parameter_data
+            # scattering
+            clouds_params['scattering'] = config_file['retrieval']['FM']['clouds']['scattering_emission']
+        elif config_file['retrieval']['FM']['clouds']['model'] == 'grey_deck':
+            cloud_deck_params = ['log_Pcloud']
+            for param in cloud_deck_params:
+                if param in config_file['retrieval']['FM']['clouds']['parameters'].keys():
+                    parameter_data=config_file['retrieval']['FM']['clouds']['parameters'][param]
+                    if isinstance(parameter_data,list):
+                        create_prior_from_parameter(
+                            param=param,
+                            parameter_data=parameter_data,
+                            RANGE=RANGE,
+                            LOG_PRIORS=LOG_PRIORS,
+                            CUBE_PRIORS=CUBE_PRIORS)
+                        if extract_param:
+                            clouds_params[param] = params[params_names.index(param)]
+                    else:
+                        clouds_params[param] = parameter_data
         
         # physical
         for param in config_file['retrieval']['FM']['physical'].keys():
