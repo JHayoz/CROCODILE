@@ -152,7 +152,14 @@ class Data:
             self.PHOT_data_flux[instr] = self.PHOT_data_flux[instr]/extinction
             self.PHOT_data_err[instr] = self.PHOT_data_err[instr]/extinction
         print('Done!')
-            
+    
+    def rescale_CC_data(self,scale=1e-15):
+        print('Rescaling all data by ', scale)
+        # CC data
+        for instr in self.CC_data_wlen.keys():
+            std = np.std(self.CC_data_flux[instr])
+            self.CC_data_flux[instr] = self.CC_data_flux[instr]*scale/std
+            self.CC_data_sf2[instr]  = 1./len(self.CC_data_wlen[instr])*np.sum(self.CC_data_flux[instr]**2)
     
     def getCCSpectrum(self):
         return self.CC_data_wlen,self.CC_data_flux

@@ -38,6 +38,11 @@ def retrieve_samples(config_file,output_dir):
     stats = a.get_stats()
     bestfit_params = a.get_best_fit()
     samples = np.array(a.get_equal_weighted_posterior())[:,:-1]
+
+    if np.shape(samples)[0] < 10:
+        print('No equally-weighted posterior distribution available, take the samples through get_data instead')
+        analyzer_data = a.get_data()
+        samples = analyzer_data[:,2:]
     
     return samples
 

@@ -87,12 +87,14 @@ class ForwardModel:
         self.only_include = only_include
         if include_H2:
             self.line_opacities += ['H2_main_iso']
+        
         if cloud_model == 'ackermann':
             self.cloud_species = cloud_species
             self.do_scat_emis = do_scat_emis
         else:
             self.cloud_species =  []
             self.do_scat_emis = False
+        
         self.continuum_opacities =  cont_opacities
         self.rayleigh_scatterers = rayleigh_scat
         self.cloud_model = cloud_model

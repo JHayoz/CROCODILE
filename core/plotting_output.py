@@ -442,11 +442,12 @@ def plot_retrieved_spectra(
             # extend range of model
             wvl_stepsize=np.mean(wlen_CC[instr][1:]-wlen_CC[instr][:-1])
             extend_wvl_bins=int(0.1/wvl_stepsize)
-            wlen_low = np.arange(wlen_CC[instr][0]-extend_wvl_bins*wvl_stepsize,wlen_CC[instr][0],wvl_stepsize)
+            wlen_low = np.arange(wlen_CC[instr][0]-extend_wvl_bins*wvl_stepsize,wlen_CC[instr][0]-wvl_stepsize,wvl_stepsize)
             wlen_high = np.arange(wlen_CC[instr][-1]+wvl_stepsize,wlen_CC[instr][-1]+(extend_wvl_bins+1)*wvl_stepsize,wvl_stepsize)
             new_wlen_CC = np.hstack([wlen_low,wlen_CC[instr],wlen_high]).flatten()
             new_flux_CC = np.zeros_like(new_wlen_CC)
-            new_flux_CC[np.isin(new_wlen_CC,wlen_CC[instr])] = flux_CC[instr]
+            mask_CC = np.logical_and(new_wlen_CC >= wlen_CC[instr][0],new_wlen_CC <= wlen_CC[instr][-1])
+            new_flux_CC[mask_CC] = flux_CC[instr]
             
             drv,ccf = crosscorrRV(CC_data_wlen[instr],CC_data_flux[instr],new_wlen_CC,new_flux_CC,rvmin=-rv_range,rvmax=rv_range,drv=drv_step)
             sf2 = np.sum(flux_CC[instr]**2)

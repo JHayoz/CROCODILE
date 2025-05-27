@@ -13,6 +13,7 @@ import pickle
 import numpy as np
 import json
 import sys
+from pathlib import Path
 
 # from config_petitRADTRANS import *
 # os.environ["pRT_input_data_path"] = OS_ABS_PATH_TO_OPACITY_DATABASE
@@ -23,11 +24,18 @@ from core.read import open_config,create_dir
 from core.retrievalClass import Retrieval
 
 print('... DONE')
-
+pc_to_meter = 30856775812799588
 def main(config_file_path,continue_retrieval):
     
     config_file=open_config(config_file_path)
-    cont_retr=bool(int(continue_retrieval))
+
+    # check if the retrieval should continue or not
+    output_dir_path = Path(config_file['metadata']['output_dir'])
+    live_points_path = output_dir_path / 'live.points'
+    # if the file "live.points" already exists, then assume that it should continue and not start over
+    cont_retr = live_points_path.exists()
+    
+    # cont_retr=bool(int(continue_retrieval))
     if cont_retr:
         print('Continuing retrieval called: %s' % config_file['metadata']['retrieval_id'])
     else:
@@ -45,8 +53,13 @@ def main(config_file_path,continue_retrieval):
         photometry_filter_dir = config_file['data']['filters'])
     
     if 'extinction' in config_file['data'].keys():
-        if not config_file['data']['extinction'] is None:
+        if not np.isnan(config_file['data']['extinction']):
             data_obj.deredden_all_data(Av=config_file['data']['extinction'])
+    
+    # rescale CC data
+    scale_factor = 5e6/(config_file['retrieval']['FM']['physical']['distance']*pc_to_meter)**2
+    data_obj.rescale_CC_data(scale=scale_factor)
+    
     
     fig=data_obj.plot(
         config=config_file,
@@ -70,6 +83,9 @@ def main(config_file_path,continue_retrieval):
         continue_retrieval = cont_retr)
     print('Starting Bayesian inference')
     
+    # save params names
+    json.dump(retrieval.params_names, open(retrieval.output_path / 'params.json', 'w'))
+    
     n_params = len(retrieval.params_names)
     
     pymultinest.run(retrieval.lnprob_pymultinest,
@@ -81,8 +97,6 @@ def main(config_file_path,continue_retrieval):
                     n_live_points = config_file['hyperparameters']['multinest']['n_live_points'])
     
     print('############### FINISHING THE SAMPLER #####################')
-    # save positions
-    json.dump(retrieval.params_names, open(retrieval.output_path / 'params.json', 'w'))
     
     # create analyzer object
     a = pymultinest.Analyzer(n_params, outputfiles_basename = str(retrieval.output_path) + '/')
