@@ -187,20 +187,6 @@ def synthetic_photometry(wlen,flux,f):
     integrand2 = np.trapz([f(x) for i,x in enumerate(wlen)],wlen)
     return integrand1/integrand2
 
-def nice_name(molecule):
-    final_name = ''
-    if '_' in molecule:
-        final_name += molecule[:molecule.index('_')]
-    else:
-        final_name += molecule
-    final_string = ''
-    for char in final_name:
-        if char.isnumeric():
-            final_string += '$_{'+char+'}$'
-        else:
-            final_string += char
-    return final_string
-
 def set_const_abundance_param(chem_model_params,abund,val):
     abund,model,param_i = abund,'constant','param_0'
     param = '___'.join([abund,model,param_i])
@@ -306,16 +292,28 @@ def name_ck(molecule):
 def convert_to_ck_names(abundances):
     return [name_lbl_to_ck(mol) for mol in abundances]
 
-def convert_units(wlen, flux, log_radius, distance):
+def convert_units_to_SI(wlen, flux):
     # converts a flux in CSG units to SI units, and from F_nu to F_lambda
-    RADIUS_J = 69911*1000
-    R_planet=(10**log_radius)*RADIUS_J
-    wlen_temp = wlen*1e4
+    wlen_SI = wlen*1e4
     #flux_temp = flux*1e-3/1e-6*R_planet**2/distance**2
     #flux_temp = flux*1e-3*nc.c*1e-2/1e-6/wlen_temp**2*(R_planet**2/distance**2)
-    flux_temp = flux*1e-3*cst.c/1e-6/wlen_temp**2*(R_planet**2/distance**2)
+    # flux_temp = flux*1e-3*cst.c/1e-6/wlen_temp**2*(R_planet**2/distance**2)
+    flux_SI = flux*1e-3*cst.c/1e-6/wlen_SI**2
     
-    return wlen_temp,flux_temp
+    return wlen_SI,flux_SI
+
+def scale_flux(flux,radius,distance):
+    # assuming wlen and flux in SI units, flux in W/m2/microns
+    # distance in parsec
+    # radius in Jupiter radius
+    RADIUS_J = 69911*1000
+    R_planet_m=radius*RADIUS_J
+    pc_to_meter = 30856775812799588
+    distance_m = distance*pc_to_meter
+    
+    flux_scaled = flux*((R_planet_m**2)/(distance_m**2))
+    return flux_scaled
+    
 
 def make_phot(phot_filters,wlen,flux,phot_data_flux = None,phot_data_flux_err = None,N_points=1000):
     filter_function={}

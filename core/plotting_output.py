@@ -20,8 +20,9 @@ from core.priors import Prior
 from core.forward_model import ForwardModel
 from core.read import read_forward_model_from_config
 from core.retrievalClass import Retrieval
-from core.util import quantiles_to_string,calc_CO_ratio,calc_FeH_ratio,convert_units,filter_position,get_std_percentiles,get_abundance_params,nice_param_name,calc_FeH_ratio_from_samples
+from core.util import quantiles_to_string,calc_CO_ratio,calc_FeH_ratio,convert_units_to_SI,scale_flux,filter_position,get_std_percentiles,get_abundance_params,nice_param_name,calc_FeH_ratio_from_samples
 from core.model import get_temperatures
+from core.plotting import plot_data
 
 file_extensions = list(map(lambda x: '.' + x,['eps', 'jpeg', 'jpg', 'pdf', 'pgf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz', 'tif', 'tiff']))
 
@@ -250,9 +251,16 @@ def plot_retrieved_temperature_profile(
     quantile_curves = np.quantile(temperatures_all_arr,q=quantiles,axis = 0)
     
     # median curve
-    median_label = label + quantiles_to_string(np.quantile(samples[:,params_names.index('t_equ')],
+    if 't_equ' in params_names:
+        median_label = label + quantiles_to_string(np.quantile(samples[:,params_names.index('t_equ')],
                                                            q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2]),decimals = 0) + ' K'
+    elif 't_int' in params_names:
+        median_label = label + quantiles_to_string(np.quantile(samples[:,params_names.index('t_int')],
+                                                           q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2]),decimals = 0) + ' K'
+    else:
+        median_label = label
     ax.plot(quantile_curves[nb_stds],pressures,color=color,ls=':',label=median_label)
+
     
     if nb_stds > 0:
         for std_i in range(1,nb_stds+1):
@@ -302,54 +310,107 @@ def plot_retrieved_spectra(
     print('Picking samples')
     # pick samples
     sim_samples = pick_sampled_spectra(samples=samples,nb_picks=nb_picks)
-    print('Calculating c-k spectra')
-    # calculate spectra using samples
-    wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample = calc_sampled_spectra_ck(retrieval,sim_samples=sim_samples)
-    
-    # get posterior SED
-    wlen_arr = wlen_sample[0]
-    
-    nb_random_samples = np.min([nb_picks,len(sim_samples)])
-    flux_arr = np.zeros((nb_random_samples,len(flux_sample[0])))
-    for sample_i in range(nb_random_samples):
-        flux_arr[sample_i] = flux_sample[sample_i]
-    quantiles = get_std_percentiles(nb_stds=1)
-    flux_quantiles = np.quantile(flux_arr,q=quantiles,axis = 0)
-    
     # get median of posterior
     median_sample = sim_samples[-1]
-    # get median SED
-    median_wlen_ck,median_flux_ck = wlen_sample_ck[len(sim_samples)-1],flux_sample_ck[len(sim_samples)-1]
-    flux_median = flux_sample[len(sim_samples)-1]
-    # get model for median posterior
-    chem_params,temp_params,clouds_params,physical_params,data_params = read_forward_model_from_config(
-            config_file=retrieval.config,
-            params=median_sample,
-            params_names=retrieval.params_names,
-            extract_param=True)
-    # get model low-resolution spectroscopy and photometry
-    model_photometry,wlen_RES,flux_RES = calc_model_spectroscopy_ck(retrieval,median_wlen_ck,median_flux_ck,physical_params,data_params)
-    print('Calculating lbl spectrum')
-    # get model high-resolution spectroscopy
-    wlen_CC,flux_CC,wlen_RES,flux_RES = calc_sampled_spectra_lbl(retrieval,median_sample,wlen_RES,flux_RES)
+    print(sim_samples)
+    model_sim_wlen = {}
+    model_sim_flux = {}
+    wlen_CC,flux_CC = {},{}
+    wlen_RES,flux_RES = {},{}
+    model_photometry = {}
+    if not retrieval.forwardmodel_ck is None:
+        print('Calculating c-k spectra')
+        # calculate spectra using samples
+        wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample = calc_sampled_spectra_ck(retrieval,sim_samples=sim_samples)
+        print(wlen_sample.keys())
+        print(wlen_sample)
+        # get posterior SED
+        wlen_arr = wlen_sample[0]
+        
+        nb_random_samples = np.min([nb_picks,len(sim_samples)])
+        flux_arr = np.zeros((nb_random_samples,len(flux_sample[0])))
+        for sample_i in range(nb_random_samples):
+            flux_arr[sample_i] = flux_sample[sample_i]
+        quantiles = get_std_percentiles(nb_stds=1)
+        flux_quantiles = np.quantile(flux_arr,q=quantiles,axis = 0)
+        
+        # get median SED
+        median_wlen_ck,median_flux_ck = wlen_sample[len(sim_samples)-1],flux_sample[len(sim_samples)-1]
+        flux_median = flux_sample[len(sim_samples)-1]
+        
+        # save as dictionary
+        model_sim_wlen['median'] = wlen_arr
+        model_sim_flux['median'] = flux_median
+        for quant_i,quant in enumerate(quantiles):
+            model_sim_wlen['quantile_%.2f' % quant] = wlen_arr
+            model_sim_flux['quantile_%.2f' % quant] = flux_quantiles[quant_i]
+        
+        # get model for median posterior
+        chem_params,temp_params,clouds_params,physical_params,data_params = read_forward_model_from_config(
+                config_file=retrieval.config,
+                params=median_sample,
+                params_names=retrieval.params_names,
+                extract_param=True)
+        # get model low-resolution spectroscopy and photometry
+        model_photometry,wlen_RES,flux_RES = calc_model_spectroscopy_ck(retrieval,median_wlen_ck,median_flux_ck,data_params)
+    if not retrieval.forwardmodel_lbl is None:
+        print('Calculating lbl spectrum')
+        # get model high-resolution spectroscopy
+        wlen_CC,flux_CC,wlen_RES,flux_RES = calc_sampled_spectra_lbl(retrieval,median_sample,wlen_RES,flux_RES)
     
     # get all data
     PHOT_flux,PHOT_flux_err,filt,filt_func,filt_mid,filt_width = retrieval.data_obj.getPhot()
     RES_data_wlen,RES_data_flux,flux_err,inverse_cov,flux_data_std = retrieval.data_obj.getRESSpectrum()
     CC_data_wlen,CC_data_flux = retrieval.data_obj.getCCSpectrum()
     data_N,data_sf2 = retrieval.data_obj.CC_data_N,retrieval.data_obj.CC_data_sf2
+    extinction = retrieval.data_obj.extinction
+    
+    plot_data(retrieval.config,
+              CC_wlen = CC_data_wlen,
+              CC_flux = CC_data_flux,
+              CC_wlen_w_cont = {},
+              CC_flux_w_cont = {},
+              model_CC_wlen = wlen_CC,
+              model_CC_flux = flux_CC,
+              sgfilter = {},
+              RES_wlen = RES_data_wlen,
+              RES_flux = RES_data_flux,
+              RES_flux_err = flux_err,
+              model_RES_wlen = wlen_RES,
+              model_RES_flux = flux_RES,
+              PHOT_midpoint = filt_mid,
+              PHOT_width = filt_width,
+              PHOT_flux = PHOT_flux,
+              PHOT_flux_err = PHOT_flux_err,
+              PHOT_filter = filt,
+              PHOT_sim_wlen = {},
+              PHOT_sim_flux = {},
+              model_PHOT_flux = model_photometry,
+              inset_plot = True,
+              output_file = str(Path(save_file_SED).parent),
+              plot_name=str(Path(save_file_SED).stem),
+              title = 'Spectrum',
+              fontsize=15,
+              plot_errorbars=True,
+              save_plot=True,
+              extinction = extinction
+             )
+    # plot all data
+    
+    """
     print('Plotting')
     # start plot
-    filter_pos = filter_position(filt_mid)
-    rgba = {}
-    cmap = color_palette('colorblind',n_colors = len(PHOT_flux.keys()),as_cmap = True)
-    
-    phot_keys = list(PHOT_flux.keys())
-    phot_instr = list(map(lambda x: x[x.index('_')+1:],phot_keys))
-    instr_to_phot_flux_to = {phot_instr[i]:phot_keys[i] for i in range(len(phot_instr))}
-    for instr in PHOT_flux.keys():
-        rgba[instr] = cmap[filter_pos[instr]%len(cmap)]
-
+    if len(PHOT_flux.keys()) > 0:
+        filter_pos = filter_position(filt_mid)
+        rgba = {}
+        cmap = color_palette('colorblind',n_colors = len(PHOT_flux.keys()),as_cmap = True)
+        
+        phot_keys = list(PHOT_flux.keys())
+        phot_instr = list(map(lambda x: x[x.index('_')+1:],phot_keys))
+        instr_to_phot_flux_to = {phot_instr[i]:phot_keys[i] for i in range(len(phot_instr))}
+        for instr in PHOT_flux.keys():
+            rgba[instr] = cmap[filter_pos[instr]%len(cmap)]
+    if len(RES_data_wlen.keys()) + len(PHOT_flux.keys()) > 0:
     # plot for cont-included data
     fig=plt.figure(figsize=(10,8))
     nb_plots = 4
@@ -416,7 +477,8 @@ def plot_retrieved_spectra(
     if save_plot:
         plt.savefig(save_file_SED,dpi=300)
     plt.show()
-
+    """
+    
     # plot for cont-removed data
     if len(CC_data_wlen.keys()) > 0:
         fig=plt.figure(figsize=(15,5))
@@ -483,6 +545,16 @@ def plot_retrieved_spectra(
                 save_file_path_new = str(save_file_path.parent / save_file_path.stem) + ('_%s' % instr) + str(save_file_path.suffix)
                 plt.savefig(save_file_path_new,dpi=300)
             plt.show()
+    if len(PHOT_flux.keys()) > 0:
+        filter_pos = filter_position(filt_mid)
+        rgba = {}
+        cmap = color_palette('colorblind',n_colors = len(PHOT_flux.keys()),as_cmap = True)
+        
+        phot_keys = list(PHOT_flux.keys())
+        phot_instr = list(map(lambda x: x[x.index('_')+1:],phot_keys))
+        instr_to_phot_flux_to = {phot_instr[i]:phot_keys[i] for i in range(len(phot_instr))}
+        for instr in PHOT_flux.keys():
+            rgba[instr] = cmap[filter_pos[instr]%len(cmap)]
     
     for res_instr in RES_data_wlen.keys():
         fig=plt.figure(figsize=(15,5))
@@ -534,9 +606,10 @@ def calc_sampled_spectra_ck(
     sim_samples
 ):
     
-    pc_to_meter = 30856775812799588
     wlen_sample_ck,flux_sample_ck = {},{}
     wlen_sample,flux_sample = {},{}
+    print(sim_samples)
+    print(len(sim_samples))
     for sample_i in range(len(sim_samples)):
         print('Sample progress: %.2f' % ((sample_i+1)*100/len(sim_samples)),end='\r')
         
@@ -544,7 +617,7 @@ def calc_sampled_spectra_ck(
         
         chem_params,temp_params,clouds_params,physical_params,data_params = read_forward_model_from_config(
             config_file=retrieval.config,
-            params=params,
+            params=params.copy(),
             params_names=retrieval.params_names,
             extract_param=True)
         # evaluate log-likelihood for FM using c-k mode
@@ -557,7 +630,10 @@ def calc_sampled_spectra_ck(
                       physical_params = physical_params,
                       external_pt_profile = None,
                       return_profiles = False)
-            wlen_sample[sample_i], flux_sample[sample_i] = convert_units(wlen_sample_ck[sample_i], flux_sample_ck[sample_i], log_radius=np.log10(physical_params['R']), distance = physical_params['distance']*pc_to_meter)
+            wlen_ck_SI,flux_ck_SI = convert_units_to_SI(wlen_sample_ck[sample_i], flux_sample_ck[sample_i])
+            flux_ck_SI_scaled = scale_flux(flux_ck_SI,radius=physical_params['R'],distance=physical_params['distance'])
+            
+            wlen_sample[sample_i], flux_sample[sample_i] = wlen_ck_SI,flux_ck_SI_scaled
     print()
     return wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample
 
@@ -565,17 +641,15 @@ def calc_model_spectroscopy_ck(
     retrieval,
     wlen_ck,
     flux_ck,
-    physical_params,
     data_params
 ):
     wlen_RES,flux_RES = {},{}
     model_photometry = {}
     if retrieval.data_obj.PHOTinDATA():
         # print('c-k photometry Log-L')
-        log_L_PHOT,model_photometry,wlen_PHOT,flux_PHOT = retrieval.calc_log_L_PHOT(
+        log_L_PHOT,model_photometry = retrieval.calc_log_L_PHOT(
             wlen=wlen_ck,
-            flux=flux_ck,
-            physical_params=physical_params)
+            flux=flux_ck)
     
     RES_data_wlen,RES_data_flux,flux_err,inverse_cov,flux_data_std = retrieval.data_obj.getRESSpectrum()
     if retrieval.data_obj.RES_data_with_ck:
@@ -587,7 +661,6 @@ def calc_model_spectroscopy_ck(
                     flux=flux_ck,
                     data_params=data_params,
                     data_key=instr,
-                    physical_params=physical_params,
                     wlen_data=RES_data_wlen[instr],
                     flux_data=RES_data_flux[instr],
                     flux_err=flux_err[instr],
@@ -627,18 +700,22 @@ def calc_sampled_spectra_lbl(
                   external_pt_profile = None,
                   return_profiles = False)
             
+            wlen_lbl_SI,flux_lbl_SI = convert_units_to_SI(wlen_lbl,flux_lbl)
+            flux_lbl_SI_scaled = scale_flux(flux_lbl_SI,radius=physical_params['R'],distance=physical_params['distance'])
+            
             if retrieval.data_obj.CCinDATA():
                 for instr in CC_data_wlen.keys():
                     if retrieval.CC_to_lbl_itvls[instr] == interval_key:
                         # print('lbl CC-Log-L for',instr)
                         log_L_CC_temp,wlen_CC[instr],flux_CC[instr],sgfilter[instr] = retrieval.calc_log_L_CC(
-                            wlen=wlen_lbl,
-                            flux=flux_lbl,
-                            physical_params=physical_params,
+                            wlen=wlen_lbl_SI,
+                            flux=flux_lbl_SI_scaled,
                             data_wlen=CC_data_wlen[instr],
                             data_flux=CC_data_flux[instr],
                             data_N=data_N[instr],
-                            data_sf2=data_sf2[instr]
+                            data_sf2=data_sf2[instr],
+                            data_params=data_params,
+                            data_key=instr
                             )
             
             if retrieval.data_obj.RESinDATA():
@@ -647,11 +724,10 @@ def calc_sampled_spectra_lbl(
                         if retrieval.RES_to_lbl_itvls[instr] == interval_key:
                             # print('lbl RES-Log-L for',instr)
                             log_L_RES_temp,wlen_RES[instr],flux_RES[instr] = retrieval.calc_log_L_RES(
-                                wlen=wlen_lbl,
-                                flux=flux_lbl,
+                                wlen=wlen_lbl_SI,
+                                flux=flux_lbl_SI_scaled,
                                 data_params=data_params,
                                 data_key=instr,
-                                physical_params=physical_params,
                                 wlen_data=RES_data_wlen[instr],
                                 flux_data=RES_data_flux[instr],
                                 flux_err=flux_err[instr],

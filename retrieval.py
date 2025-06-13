@@ -53,11 +53,14 @@ def main(config_file_path,continue_retrieval):
         photometry_filter_dir = config_file['data']['filters'])
     
     if 'extinction' in config_file['data'].keys():
-        if not np.isnan(config_file['data']['extinction']):
+        ext = config_file['data']['extinction']
+        if not (ext is None):
             data_obj.deredden_all_data(Av=config_file['data']['extinction'])
     
     # rescale CC data
-    scale_factor = 5e6/(config_file['retrieval']['FM']['physical']['distance']*pc_to_meter)**2
+    # scale_factor = 1e10*5e6/(config_file['retrieval']['FM']['physical']['distance']*pc_to_meter)**2
+    # scale_factor = 1e20*5e6/(config_file['retrieval']['FM']['physical']['distance']*pc_to_meter)**2
+    scale_factor = 1
     data_obj.rescale_CC_data(scale=scale_factor)
     
     
@@ -67,7 +70,7 @@ def main(config_file_path,continue_retrieval):
         plot_name = 'data',
         title = 'Data for retrieval %s' % config_file['metadata']['retrieval_id'],
         inset_plot=False,
-        plot_errorbars=False,
+        plot_errorbars=True,
         save_plot=True)
     
     # load priors

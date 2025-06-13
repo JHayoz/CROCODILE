@@ -24,6 +24,9 @@ class Data:
         contrem_spectroscopy_files = {},
         photometry_filter_dir = ''):
         
+        # properties
+        self.extinction = None
+        
         # spectroscopy
         self.spectral_resolution = {}
         # continuum-removed spectrum, aka used with cross-correlation spectroscopy
@@ -131,6 +134,7 @@ class Data:
 
     def deredden_all_data(self,Av):
         print('Dereddening all data by Av=%.2f' % Av)
+        self.extinction = Av
         # CC data
         for instr in self.CC_data_wlen.keys():
             print('Dereddening %s' % instr)
@@ -337,25 +341,28 @@ class Data:
              plot_errorbars=True,
              save_plot=True):
         
-        fig = plot_data(config,
-                  CC_wlen       = self.CC_data_wlen,
-                  CC_flux       = self.CC_data_flux,
-                  RES_wlen      = self.RES_data_wlen,
-                  RES_flux      = self.RES_data_flux,
-                  RES_flux_err  = self.RES_cov_err,
-                  PHOT_midpoint = self.PHOT_filter_midpoint,
-                  PHOT_width    = self.PHOT_filter_width,
-                  PHOT_flux     = self.PHOT_data_flux,
-                  PHOT_flux_err = self.PHOT_data_err,
-                  PHOT_filter   = self.PHOT_data_filter,
-                  #PHOT_sim_wlen = self.PHOT_sim_spectrum_wlen,
-                  #PHOT_sim_flux = self.PHOT_sim_spectrum_flux,
-                  inset_plot    = inset_plot,
-                  output_file   = output_dir,
-                  title         = title,
-                  plot_name     = plot_name,
-                  plot_errorbars= plot_errorbars,
-                  save_plot=save_plot)
+        fig = plot_data(
+            config,
+            CC_wlen       = self.CC_data_wlen,
+            CC_flux       = self.CC_data_flux,
+            RES_wlen      = self.RES_data_wlen,
+            RES_flux      = self.RES_data_flux,
+            RES_flux_err  = self.RES_cov_err,
+            PHOT_midpoint = self.PHOT_filter_midpoint,
+            PHOT_width    = self.PHOT_filter_width,
+            PHOT_flux     = self.PHOT_data_flux,
+            PHOT_flux_err = self.PHOT_data_err,
+            PHOT_filter   = self.PHOT_data_filter,
+            #PHOT_sim_wlen = self.PHOT_sim_spectrum_wlen,
+            #PHOT_sim_flux = self.PHOT_sim_spectrum_flux,
+            inset_plot    = inset_plot,
+            output_file   = output_dir,
+            title         = title,
+            plot_name     = plot_name,
+            plot_errorbars= plot_errorbars,
+            save_plot=save_plot,
+            extinction = self.extinction
+            )
         return fig
 
 

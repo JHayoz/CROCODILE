@@ -11,7 +11,7 @@ from scipy.signal import savgol_filter
 from scipy.fft import fft, ifft
 from scipy.ndimage import gaussian_filter,median_filter
 from time import time
-from core.util import convert_units,synthetic_photometry,calc_median_filter,effective_width_filter
+from core.util import synthetic_photometry,calc_median_filter,effective_width_filter
 
 # help functions to rebin the flux
 def rebin(wlen,flux,wlen_data,flux_err = None, method='linear'):
@@ -77,16 +77,10 @@ def doppler_shift(wlen,flux,RV):
     
     return wlen_temp,flux_temp
 
-def rebin_to_CC(wlen,flux,wlen_data,win_len,method='linear',filter_method = 'only_gaussian',nb_sigma=5,convert = False,log_R=1,distance=1):
-    # convert from CSG to SI units and atmospheric flux at Earth. Now just the wlen to SI units
-    if convert:
-        wlen_temp, flux_temp = convert_units(wlen, flux, log_R, distance = distance)
-    else:
-        wlen_temp = 1e4*wlen
-        flux_temp = flux
+def rebin_to_CC(wlen,flux,wlen_data,win_len,method='linear',filter_method = 'only_gaussian',nb_sigma=5):
     t0 = time()
     # rebinning
-    wlen_rebin,flux_rebin = rebin(wlen_temp,flux_temp,wlen_data)
+    wlen_rebin,flux_rebin = rebin(wlen,flux,wlen_data)
     wlen_rebin_datalike,flux_rebin_datalike = np.transpose([[wlen_rebin[i],flux_rebin[i]] for i in range(len(wlen_rebin)) if wlen_rebin[i] >= wlen_data[0] and wlen_rebin[i] <= wlen_data[-1]])
     
     # remove continuum with savitzky-golay filter
@@ -122,18 +116,13 @@ def rebin_to_CC(wlen,flux,wlen_data,win_len,method='linear',filter_method = 'onl
     
     return wlen_removed,flux_removed,calc_filter,wlen_rebin_datalike,flux_rebin_datalike
 
-def rebin_to_RES(wlen,flux,wlen_data,log_R,distance):
-    # convert from CSG to SI units and atmospheric flux at Earth. Now just the wlen to SI units
-    wlen_temp, flux_temp = convert_units(wlen, flux, log_R, distance = distance)
+def rebin_to_RES(wlen,flux,wlen_data):
     
-    wlen_temp,flux_temp = rebin(wlen_temp,flux_temp,wlen_data,method = 'datalike')
+    wlen_rebin,flux_rebin = rebin(wlen,flux,wlen_data,method = 'datalike')
     
-    return wlen_temp,flux_temp
+    return wlen_rebin,flux_rebin
     
-def rebin_to_PHOT(wlen,flux,filt_func,log_R,distance,phot_flux_data = None,phot_flux_err_data = None):
-    
-    # convert from CSG to SI units and atmospheric flux at Earth. Now just the wlen to SI units
-    wlen_temp, flux_temp = convert_units(wlen, flux, log_R, distance = distance)
+def rebin_to_PHOT(wlen,flux,filt_func,phot_flux_data = None,phot_flux_err_data = None):
     
     # calculate photometry for forward model
     model_photometry = {}
@@ -141,15 +130,15 @@ def rebin_to_PHOT(wlen,flux,filt_func,log_R,distance,phot_flux_data = None,phot_
     phot_midpoint={}
     phot_width={}
     for instr in filt_func.keys():
-        model_photometry[instr] = synthetic_photometry(wlen_temp,flux_temp,filt_func[instr])
+        model_photometry[instr] = synthetic_photometry(wlen,flux,filt_func[instr])
         if phot_flux_data is not None and phot_flux_err_data is not None:
             model_photometry_err[instr] = phot_flux_err_data[instr]/phot_flux_data[instr]*model_photometry[instr]
             phot_midpoint[instr] = calc_median_filter(filt_func[instr],N_points=2000)
             phot_width[instr] = effective_width_filter(filt_func[instr],N_points=2000)
     if phot_flux_data is not None and phot_flux_err_data is not None:
-        return model_photometry,model_photometry_err,phot_midpoint,phot_width,wlen_temp,flux_temp
+        return model_photometry,model_photometry_err,phot_midpoint,phot_width
     else:
-        return model_photometry,wlen_temp,flux_temp
+        return model_photometry
 
 def only_gaussian_filter(wlen,flux,sigma=None,wlen_after=None):
     if sigma is None:

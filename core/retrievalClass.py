@@ -20,14 +20,14 @@ from os import path
 # from petitRADTRANS import physics
 
 from config_petitRADTRANS import *
-from core.util import name_lbl_to_ck,convert_units
+from core.util import name_lbl_to_ck,convert_units_to_SI,scale_flux
 from core.read import read_forward_model_from_config
 from core.forward_model import ForwardModel
 from core.rebin import rebin_to_RES,rebin_to_CC,rebin_to_PHOT,doppler_shift
 from core.plotting import plot_data
 
 # class to define an atmospheric retrieval
-pc_to_meter = 30856775812799588
+
 class Retrieval:
     def __init__(
         self,
@@ -79,9 +79,18 @@ class Retrieval:
         self.NaN_photometry = 0
         self.nb_failed_DS = 0
         
+        # diagnostic for C-C log
+        self.diag_sf2 = 0.
+        self.diag_sg2 = 0.
+        self.diag_CC = 0.
+        self.diag_log_CC = 0.
+        self.diag_params = []
+        self.diag_CC_file = self.output_path / 'diag_CC.txt'
+        
         if not for_analysis:
             if not continue_retrieval:
                 open(self.diag_file,'w').close()
+                open(self.diag_CC_file,'w').close()
             
             if self.plotting:
                 if not os.path.exists(self.output_path / 'model'):
@@ -195,37 +204,34 @@ class Retrieval:
         self,
         wlen,
         flux,
-        physical_params,
         data_wlen,
         data_flux,
         data_N,
-        data_sf2):
+        data_sf2,
+        data_params,
+        data_key):
         
-        log_L_CC = 0
-        
-        # get data
-        wlen_data,flux_data = data_wlen,data_flux
-        
-        N = data_N
-        s_f2 = data_sf2
+        log_L_CC = 0.
+
+        flux_scaling_key = '%s___%s' % (data_key,'flux_scaling')
+        flux_data_scaled = data_params[flux_scaling_key]*data_flux
+
+        data_sf2_scaled = 1./data_N*np.sum(flux_data_scaled**2)
         
         # cut what I don't need to improve speed
         #wlen_cut,flux_cut = trim_spectrum(wlen,flux,wlen_data,threshold=5000,keep=1000)
         
         # filter_size given in nm, not in wvl channels
-        dwvl = np.mean(wlen_data[1:]-wlen_data[:-1])*1e3 # size of a wvl channel in nm
+        dwvl = np.mean(data_wlen[1:]-data_wlen[:-1])*1e3 # size of a wvl channel in nm
         win_len = self.config['hyperparameters']['CC']['filter_size']/dwvl # in wvl channel
         
         wlen_removed,flux_removed,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(
-            wlen,
-            flux,
-            wlen_data,
+            wlen.copy(),
+            flux.copy(),
+            data_wlen,
             win_len = win_len,
             method='linear',
-            filter_method = 'only_gaussian',
-            convert = True,
-            log_R=np.log10(physical_params['R']),
-            distance=physical_params['distance']*pc_to_meter)
+            filter_method = 'only_gaussian')
         
         if sum(np.isnan(flux_rebin))>0:
             self.NaN_spectRES += 1
@@ -239,90 +245,95 @@ class Retrieval:
             log_L_CC += -1e299
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
+        # flux_removed_rescaled = flux_removed/np.std(flux_removed)
+        
         # cross-correlation
-        dRV,CC=crosscorrRV(
-            wlen_data,
-            flux_data,
+        dRV,CCF=crosscorrRV(
+            data_wlen,
+            flux_data_scaled,
             wlen_removed,
-            flux_removed,
+            flux_removed, # flux_removed_rescaled
             rvmin=self.config['hyperparameters']['rv']['rv_min'],
             rvmax=self.config['hyperparameters']['rv']['rv_max'],
             drv=self.config['hyperparameters']['rv']['drv'])
         
-        if sum(np.isnan(CC)>0):
+        if sum(np.isnan(CCF)>0):
             self.NaN_crosscorrRV += 1
             log_L_CC += -1e299
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
-        CC=CC/N
+        CC=CCF/np.abs(data_N)
         RV_max_i=np.argmax(CC)
         CC_max = CC[RV_max_i]
         
         # need to doppler shift the model to the argmax of the CC-function. For that, we need to go back to high-resolution spectrum out of petitRADTRANS
         
-        wlen_removed,flux_removed = wlen,flux
+        wlen_removed_DS,flux_removed_DS = wlen.copy(),flux.copy()
         if abs(dRV[RV_max_i])<max(abs(self.config['hyperparameters']['rv']['rv_min']),abs(self.config['hyperparameters']['rv']['rv_max']))*0.75:
-            wlen_removed,flux_removed = doppler_shift(wlen,flux,dRV[RV_max_i])
-        else:
+            wlen_removed_DS,flux_removed_DS = doppler_shift(wlen.copy(),flux.copy(),dRV[RV_max_i])
+        else: 
             print('Cant Dopplershift too much')
             self.nb_failed_DS += 1
         
-        wlen_removed,flux_removed,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(
-            wlen_removed,
-            flux_removed,
-            wlen_data,
+        wlen_removed_DS,flux_removed_DS,sgfilter,wlen_rebin,flux_rebin = rebin_to_CC(
+            wlen_removed_DS,
+            flux_removed_DS,
+            data_wlen,
             win_len = win_len,
             method='datalike',
-            filter_method = 'only_gaussian',
-            convert = True,
-            log_R=np.log10(physical_params['R']),
-            distance=physical_params['distance']*pc_to_meter)
-        assert(len(wlen_removed) == len(wlen_data))
+            filter_method = 'only_gaussian')
         
-        if sum(np.isnan(flux_removed))>0:
+        assert(len(wlen_removed_DS) == len(data_wlen))
+        
+        if sum(np.isnan(flux_removed_DS))>0:
             self.NaN_spectRES += 1
             log_L_CC += -1e299
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
-        s_g2 = 1./len(flux_removed)*np.sum(flux_removed**2)
+        # flux_removed_rescaled = flux_removed_DS/np.std(flux_removed_DS)
         
-        if (s_f2-2*CC_max+s_g2) <= 0:
+        # s_g2 = 1./data_N*np.sum(flux_removed_rescaled**2)
+        s_g2 = 1./data_N*np.sum(flux_removed_DS**2)
+        
+        # CROCODILE
+        # log_term = data_sf2_scaled-2*CC_max+s_g2
+        # Zucker 2003
+        CC_2_norm = (CC_max**2)/s_g2/data_sf2_scaled
+        log_term = 1.-CC_2_norm
+        
+        if log_term <= 0:
             self.NaN_crosscorrRV += 1
             log_L_CC += -1e299
             print('Negative values inside logarithm')
             return log_L_CC,wlen_removed,flux_removed,sgfilter
         
-        log_L_CC += -N*np.log(s_f2-2*CC_max+s_g2)/2
-
-        if self.plotting:
-            if (self.function_calls%self.plotting_threshold == 0):
-                plt.figure()
-                # plt.plot(dRV,-N*np.log(s_f2-2*CC+s_g2)/2)
-                plt.plot(dRV,CC)
-                plt.axvline(dRV[RV_max_i],color='r',label='Max CC at RV={rv}'.format(rv=dRV[RV_max_i]))
-                plt.legend()
-                plt.title('log-L C-C ' + str(int(self.function_calls/self.plotting_threshold)))
-                plt.savefig(self.output_path / 'model' / ('CC_fct_%s.png' % int(self.function_calls/self.plotting_threshold)),dpi=100)
+        print('C-C: ',CC_max)
+        print('sf2 (D): ',data_sf2_scaled)
+        print('sg2 (M): ',s_g2)
+        log_L_CC += -data_N*np.log(log_term)/2
+        
+        # diagnostic for C-C log
+        self.diag_sg2 = s_g2
+        self.diag_sf2 = data_sf2_scaled
+        self.diag_CC = CC_max
+        self.diag_log_CC = log_L_CC
         
         return log_L_CC,wlen_removed,flux_removed,sgfilter
     
     def calc_log_L_PHOT(
         self,
         wlen,
-        flux,
-        physical_params):
+        flux):
         
         log_L_PHOT = 0.
         
         # get data
         PHOT_flux,PHOT_flux_err,filt,filt_func,filt_mid,filt_width = self.data_obj.getPhot() #dictionaries
         
-        model_photometry,wlen_rebin,flux_rebin = rebin_to_PHOT(
-            wlen,
-            flux,
-            filt_func = filt_func,
-            log_R = np.log10(physical_params['R']),
-            distance = physical_params['distance']*pc_to_meter)
+        model_photometry = rebin_to_PHOT(
+            wlen.copy(),
+            flux.copy(),
+            filt_func = filt_func)
         
         for instr in PHOT_flux.keys():
             
@@ -332,7 +343,7 @@ class Retrieval:
             
             log_L_PHOT += -0.5*((model_photometry[instr]-PHOT_flux[instr])/PHOT_flux_err[instr])**2
         
-        return log_L_PHOT,model_photometry,wlen_rebin,flux_rebin
+        return log_L_PHOT,model_photometry
     
     def calc_log_L_RES(
         self,
@@ -340,7 +351,6 @@ class Retrieval:
         flux,
         data_params,
         data_key,
-        physical_params,
         wlen_data,
         flux_data,
         flux_err,
@@ -350,11 +360,10 @@ class Retrieval:
         
         log_L_RES = 0
         if mode == 'lbl' or max(wlen_data[1:]/(wlen_data[1:]-wlen_data[:-1])) < 950:
-            wlen_rebin,flux_rebin = rebin_to_RES(wlen,flux,wlen_data,log_R = np.log10(physical_params['R']),distance = physical_params['distance']*pc_to_meter)
+            wlen_rebin,flux_rebin = rebin_to_RES(wlen.copy(),flux.copy(),wlen_data)
         else:
             # very edge case if I need to rebin a 1000 res spectrum into 980 res spectrum
-            wlen_convert,flux_convert = convert_units(wlen,flux, log_radius=np.log10(physical_params['R']), distance = physical_params['distance']*pc_to_meter)
-            flux_interped = interp1d(wlen_convert,flux_convert)
+            flux_interped = interp1d(wlen,flux)
             wlen_rebin,flux_rebin = wlen_data.copy(),flux_interped(wlen_data)
         
         flux_scaling_key = '%s___%s' % (data_key,'flux_scaling')
@@ -447,7 +456,7 @@ class Retrieval:
         # evaluate log-likelihood for FM using c-k mode
         wlen_RES,flux_RES = {},{}
         wlen_ck,flux_ck=None,None
-        wlen_PHOT,flux_PHOT=None,None
+        wlen_ck_SI,flux_ck_SI_scaled=None,None
         model_photometry = {}
         if self.forwardmodel_ck is not None:
             wlen_ck,flux_ck = self.forwardmodel_ck.calc_spectrum(
@@ -458,27 +467,28 @@ class Retrieval:
                       external_pt_profile = None,
                       return_profiles = False)
             
-            if sum(np.isnan(flux_ck))>0 or sum(np.isnan(wlen_ck))>0:
+            wlen_ck_SI,flux_ck_SI = convert_units_to_SI(wlen_ck,flux_ck)
+            flux_ck_SI_scaled = scale_flux(flux_ck_SI,radius=physical_params['R'],distance=physical_params['distance'])
+            
+            if sum(np.isnan(flux_ck_SI))>0 or sum(np.isnan(wlen_ck_SI))>0:
                 self.NaN_spectra += 1
                 return -1e299
             
             if self.data_obj.PHOTinDATA():
                 # print('c-k photometry Log-L')
-                log_L_PHOT,model_photometry,wlen_PHOT,flux_PHOT = self.calc_log_L_PHOT(
-                    wlen=wlen_ck,
-                    flux=flux_ck,
-                    physical_params=physical_params)
+                log_L_PHOT,model_photometry = self.calc_log_L_PHOT(
+                    wlen=wlen_ck_SI,
+                    flux=flux_ck_SI_scaled)
             
             if self.data_obj.RES_data_with_ck:
                 for instr in RES_data_wlen.keys():
                     if self.data_obj.RES_data_info[instr][0] == 'c-k':
                         # print('c-k RES-Log-L for',instr)
                         log_L_RES_temp,wlen_RES[instr],flux_RES[instr] = self.calc_log_L_RES(
-                            wlen=wlen_ck,
-                            flux=flux_ck,
+                            wlen=wlen_ck_SI,
+                            flux=flux_ck_SI_scaled,
                             data_params=data_params,
                             data_key=instr,
-                            physical_params=physical_params,
                             wlen_data=RES_data_wlen[instr],
                             flux_data=RES_data_flux[instr],
                             flux_err=flux_err[instr],
@@ -503,8 +513,11 @@ class Retrieval:
                       physical_params = physical_params,
                       external_pt_profile = None,
                       return_profiles = False)
+
+                wlen_lbl_SI,flux_lbl_SI = convert_units_to_SI(wlen_lbl,flux_lbl)
+                flux_lbl_SI_scaled = scale_flux(flux_lbl_SI,radius=physical_params['R'],distance=physical_params['distance'])
                 
-                if sum(np.isnan(flux_lbl))>0 or sum(np.isnan(wlen_lbl))>0:
+                if sum(np.isnan(flux_lbl_SI_scaled))>0 or sum(np.isnan(wlen_lbl_SI))>0:
                     self.NaN_spectra += 1
                     return -1e299
                 
@@ -513,13 +526,14 @@ class Retrieval:
                         if self.CC_to_lbl_itvls[instr] == interval_key:
                             # print('lbl CC-Log-L for',instr)
                             log_L_CC_temp,wlen_CC[instr],flux_CC[instr],sgfilter[instr] = self.calc_log_L_CC(
-                                wlen=wlen_lbl,
-                                flux=flux_lbl,
-                                physical_params=physical_params,
+                                wlen=wlen_lbl_SI,
+                                flux=flux_lbl_SI, # flux_lbl_SI_scaled
                                 data_wlen=CC_data_wlen[instr],
                                 data_flux=CC_data_flux[instr],
                                 data_N=data_N[instr],
-                                data_sf2=data_sf2[instr]
+                                data_sf2=data_sf2[instr],
+                                data_params=data_params,
+                                data_key=instr
                                 )
                             log_L_CC += log_L_CC_temp
                 
@@ -529,11 +543,10 @@ class Retrieval:
                             if self.RES_to_lbl_itvls[instr] == interval_key:
                                 # print('lbl RES-Log-L for',instr)
                                 log_L_RES_temp,wlen_RES[instr],flux_RES[instr] = self.calc_log_L_RES(
-                                    wlen=wlen_lbl,
-                                    flux=flux_lbl,
+                                    wlen=wlen_lbl_SI,
+                                    flux=flux_lbl_SI_scaled,
                                     data_params=data_params,
                                     data_key=instr,
-                                    physical_params=physical_params,
                                     wlen_data=RES_data_wlen[instr],
                                     flux_data=RES_data_flux[instr],
                                     flux_err=flux_err[instr],
@@ -547,6 +560,9 @@ class Retrieval:
             print('Forward Models and likelihood functions: ',t1-t0)
         
         self.computed_spectra += 1
+
+        # diagnostic for C-C log
+        self.diag_params = params
         
         log_likelihood += log_L_CC + log_L_RES + log_L_PHOT
         print(log_prior + log_likelihood)
@@ -564,11 +580,21 @@ class Retrieval:
                             f.write(str(info_list[i]).ljust(15) + "\n")
                         else:
                             f.write(str(info_list[i]).ljust(15) + " ")
+                
+                # diagnostic for C-C log
+                info_list_CC = [self.function_calls,hours,self.diag_log_CC,self.diag_CC,self.diag_sg2,self.diag_sf2] + list(self.diag_params)
+                with open(self.diag_CC_file,'a') as f:
+                    for i in np.arange(len(info_list_CC)):
+                        if (i == len(info_list_CC) - 1):
+                            f.write(str(info_list_CC[i]).ljust(15) + "\n")
+                        else:
+                            f.write(str(info_list_CC[i]).ljust(15) + " ")
         
         if self.plotting:
             if (self.function_calls%self.plotting_threshold == 0):
+                plot_path = self.output_path / 'model' / ('plot_%i.png' % int(self.function_calls/self.plotting_threshold))
                 # only to avoid overwriting a plot
-                if not path.exists(self.output_path / 'model' / ('plot%i.png' % int(self.function_calls/self.plotting_threshold))):
+                if not path.exists(plot_path):
                     CC_data_wlen={}
                     CC_data_flux={}
                     data_RES_wlen={}
@@ -614,13 +640,40 @@ class Retrieval:
                             PHOT_flux = data_PHOT_flux,
                             PHOT_flux_err = data_PHOT_err,
                             PHOT_filter = data_PHOT_filter,
-                            PHOT_sim_wlen = wlen_PHOT,
-                            PHOT_sim_flux = flux_PHOT,
+                            PHOT_sim_wlen = wlen_ck_SI,
+                            PHOT_sim_flux = flux_ck_SI_scaled,
                             model_PHOT_flux = model_photometry,
                             output_file = str(self.output_path / 'model'),
-                            plot_name = 'plot%s' % int(self.function_calls/self.plotting_threshold),
+                            plot_name = 'plot_%s' % int(self.function_calls/self.plotting_threshold),
                             save_plot=True)
-                    
+                
+                # plot CCF function
+                plot_path = self.output_path / 'model' / ('CC_fct_%s.png' % int(self.function_calls/self.plotting_threshold))
+                if self.data_obj.CCinDATA() and (not path.exists(plot_path)):
+                    CC_data_wlen,CC_data_flux = self.data_obj.getCCSpectrum()
+                    print('PLOTTING CCF')
+                    ncols = len(CC_data_wlen.keys())
+                    fig,axes = plt.subplots(ncols=ncols,figsize=(4,4*ncols))
+                    for instr_i,instr in enumerate(CC_data_wlen.keys()):
+                        if ncols==1:
+                            ax=axes
+                        else:
+                            ax = axes[instr_i]
+                        dRV,CC=crosscorrRV(
+                            CC_data_wlen[instr],
+                            CC_data_flux[instr],
+                            wlen_CC[instr],
+                            flux_CC[instr],
+                            rvmin=self.config['hyperparameters']['rv']['rv_min'],
+                            rvmax=self.config['hyperparameters']['rv']['rv_max'],
+                            drv=self.config['hyperparameters']['rv']['drv'])
+                        RV_max_i=np.argmax(CC)
+                        ax.plot(dRV,CC,label=instr)
+                        ax.axvline(dRV[RV_max_i],label='Max CC at RV={rv}'.format(rv=dRV[RV_max_i]))
+                    plt.legend()
+                    plt.title('log-L C-C ' + str(int(self.function_calls/self.plotting_threshold)))
+                    plt.savefig(self.output_path / 'model' / ('CC_fct_%s.png' % int(self.function_calls/self.plotting_threshold)),dpi=100)
+        
         if self.timing and self.plotting:
             t2 = time()
             print('Printing and plotting: ',t2-t1)

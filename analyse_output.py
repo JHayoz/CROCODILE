@@ -48,6 +48,11 @@ def main(config_file_path,retrieval_results_dir,plot_output_dir):
         contrem_spectroscopy_files = config_file['data']['spectroscopy']['contrem'],
         photometry_filter_dir = config_file['data']['filters'])
     
+    if 'extinction' in config_file['data'].keys():
+        ext = config_file['data']['extinction']
+        if not (ext is None):
+            data_obj.deredden_all_data(Av=config_file['data']['extinction'])
+    
     print('Plotting data')
     fig=data_obj.plot(
         config=config_file,
@@ -60,16 +65,17 @@ def main(config_file_path,retrieval_results_dir,plot_output_dir):
     
     prior_obj = Prior(config_file)
     samples_file_path = Path(retrieval_results_dir + 'SAMPLESpos.pickle')
+    samples = []
     if samples_file_path.exists():
         samples = read_samples(samples_file_path)
-    else:
+    if len(samples) < 100:
         samples = retrieve_samples(config_file,retrieval_results_dir)
         
         try:
             save_samples(samples,retrieval_results_dir,overwrite=False)
         except PermissionError:
             print('You do not have the permission to save data here')
-    
+    print('Number of available samples:',len(samples))
     print('Plotting cornerplot')
     plot_corner(
         config_file,

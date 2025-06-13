@@ -53,7 +53,8 @@ def plot_data(config,
               title = 'Spectrum',
               fontsize=15,
               plot_errorbars=True,
-              save_plot=True
+              save_plot=True,
+              extinction = None
              ):
     
     output_file_path = Path(output_file)
@@ -144,7 +145,7 @@ def plot_data(config,
             
             
             if plot_errorbars:
-                ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,fmt='|',color='b',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
+                ax = custom_errorbar(ax,RES_wlen,RES_flux,xerr=None,yerr = YERR,fmt='|',alpha=0.5,capsize=2, elinewidth=1, markeredgewidth=1,zorder=1)
             else:
                 ax = custom_plot(ax,RES_wlen,RES_flux,alpha=0.5,marker='+',zorder=1)
         if model_RES_wlen is not None:
@@ -165,8 +166,9 @@ def plot_data(config,
 
         """SIMULATED SPECTRUM FOR SIMULATED DATA"""
         if PHOT_sim_wlen is not None:
-            ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',label='Simulated spectrum')
+            ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k')
         
+        ax.legend()
         ax.set_xlabel(wvl_label,fontsize=fontsize)
         ax.set_ylabel(flux_label,fontsize=fontsize)
         ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
@@ -182,11 +184,16 @@ def plot_data(config,
         if model_CC_wlen is not None:
             model_CC_flux_renormed = {key:model_CC_flux[key]/np.nanstd(model_CC_flux[key]) for key in model_CC_flux.keys()}
             ax = custom_plot(ax,model_CC_wlen,model_CC_flux_renormed,color='r',lw = 0.5,label='Retrieved residuals')
-        #ax.legend(fontsize=fontsize)
+        ax.legend(fontsize=fontsize)
         ax.set_xlabel(wvl_label,fontsize=fontsize)
         ax.set_ylabel(CC_flux_label,fontsize=fontsize)
         ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
         ax.set_xlim((xmin,xmax))
+    if extinction is None:
+        use_extinction = 0
+    else:
+        use_extinction = extinction
+    ax.annotate(text = r'A$_{\mathrm{V}}$=%.2f' % use_extinction,xy=(0.1,0.1),xycoords='axes fraction')
     
     fig.tight_layout()
     
@@ -467,9 +474,9 @@ def custom_errorbar(ax,x,y,xerr,yerr,reduce_resolution = True,**kwargs):
                 yerr_plot = yerr_temp
                 if yerr_temp is not None:
                     yerr_plot = yerr_temp[10::]
-                ax.errorbar(x[key][10::],y[key][10::],xerr = xerr_plot,yerr = yerr_plot,**kwargs)
+                ax.errorbar(x[key][10::],y[key][10::],xerr = xerr_plot,yerr = yerr_plot,label=key,**kwargs)
             else:
-                ax.errorbar(x[key],y[key],xerr = xerr_temp,yerr = yerr_temp,**kwargs)
+                ax.errorbar(x[key],y[key],xerr = xerr_temp,yerr = yerr_temp,label=key,**kwargs)
             if 'label' in kwargs:
                 del kwargs['label']
             
@@ -496,9 +503,9 @@ def custom_plot(ax,x,y,reduce_resolution = True,**kwargs):
             reduce_res = True
         for key in x.keys():
             if reduce_res:
-                ax.plot(x[key][10::],y[key][10::],**kwargs)
+                ax.plot(x[key][10::],y[key][10::],label=key,**kwargs)
             else:
-                ax.plot(x[key],y[key],**kwargs)
+                ax.plot(x[key],y[key],label=key,**kwargs)
             if 'label' in kwargs:
                 del kwargs['label']
             
