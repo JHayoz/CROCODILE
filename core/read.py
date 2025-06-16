@@ -13,7 +13,10 @@ def open_config(path_config_dir):
 
 def create_dir(path):
     dir_path = Path(path)
-    dir_path.mkdir(exist_ok=True,parents=True)
+    try:
+        dir_path.mkdir(exist_ok=True,parents=True)
+    except FileExistsError:
+        print('Avoided error')
     return 
 
 def read_samples(filname):

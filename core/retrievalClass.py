@@ -60,10 +60,10 @@ class Retrieval:
         self.output_path = Path(self.config['metadata']['output_dir'])
         
         # diagnostics
-        self.plotting = self.config['hyperparameters']['diagnostics']['plotting']
+        self.plotting = str(self.config['hyperparameters']['diagnostics']['plotting']) == 'True'
         self.plotting_threshold = self.config['hyperparameters']['diagnostics']['plotting_threshold']
-        self.printing = self.config['hyperparameters']['diagnostics']['printing']
-        self.timing = self.config['hyperparameters']['diagnostics']['timing']
+        self.printing = str(self.config['hyperparameters']['diagnostics']['printing']) == 'True'
+        self.timing = str(self.config['hyperparameters']['diagnostics']['timing']) == 'True'
         self.writing_threshold = self.config['hyperparameters']['diagnostics']['writing_threshold']
         self.diag_file = self.output_path / 'diag.txt'
         

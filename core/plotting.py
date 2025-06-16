@@ -182,8 +182,8 @@ def plot_data(config,
         CC_flux_renormed = {key:CC_flux[key]/np.nanstd(CC_flux[key]) for key in CC_flux.keys()}
         ax = custom_plot(ax,CC_wlen,CC_flux_renormed,color='k')
         if model_CC_wlen is not None:
-            model_CC_flux_renormed = {key:model_CC_flux[key]/np.nanstd(model_CC_flux[key]) for key in model_CC_flux.keys()}
-            ax = custom_plot(ax,model_CC_wlen,model_CC_flux_renormed,color='r',lw = 0.5,label='Retrieved residuals')
+            model_CC_flux_renormed = {'Retrieved ' + key:model_CC_flux[key]/np.nanstd(model_CC_flux[key]) for key in model_CC_flux.keys()}
+            ax = custom_plot(ax,model_CC_wlen,model_CC_flux_renormed,color='r',lw = 0.5)
         ax.legend(fontsize=fontsize)
         ax.set_xlabel(wvl_label,fontsize=fontsize)
         ax.set_ylabel(CC_flux_label,fontsize=fontsize)
