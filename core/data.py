@@ -14,7 +14,7 @@ from pathlib import Path
 import os
 from itertools import combinations
 from .plotting import plot_data
-from .util import get_extinction
+from .util import get_extinction,synthetic_photometry
 
 class Data:
     def __init__(
@@ -116,6 +116,8 @@ class Data:
             author,filt,wlen,eff_width,flux,flux_err = row[columns]
             
             db_name = '%s_%s' % (author,filt)
+            if db_name in self.PHOT_data_flux.keys():
+                db_name += '_%i' % index # add an additional identifier to distinguish from other photometric data points
             self.PHOT_data_flux[db_name] = flux
             self.PHOT_data_err[db_name] = flux_err
             self.PHOT_filter_midpoint[db_name] = wlen
@@ -146,15 +148,22 @@ class Data:
             print('Dereddening %s' % instr)
             extinction = get_extinction(self.RES_data_wlen[instr],Av)
             self.RES_data_flux[instr] = self.RES_data_flux[instr]/extinction
-            self.RES_data_flux_err[instr] = self.RES_data_flux_err[instr]*(1./extinction)
-            self.RES_cov_err[instr] = self.RES_cov_err[instr]*(1./extinction)**2
-            self.RES_inv_cov[instr] = self.RES_inv_cov[instr]/(1./extinction)**2
+            # self.RES_data_flux_err[instr] = self.RES_data_flux_err[instr]*(1./extinction)
+            # self.RES_cov_err[instr] = self.RES_cov_err[instr]*(1./extinction)**2
+            # self.RES_inv_cov[instr] = self.RES_inv_cov[instr]/(1./extinction)**2
         # PHOT data
         for instr in self.PHOT_data_flux.keys():
             print('Dereddening %s' % instr)
-            extinction = get_extinction(self.PHOT_filter_midpoint[instr],Av)
-            self.PHOT_data_flux[instr] = self.PHOT_data_flux[instr]/extinction
-            self.PHOT_data_err[instr] = self.PHOT_data_err[instr]/extinction
+            # extinction = get_extinction(self.PHOT_filter_midpoint[instr],Av)
+            # self.PHOT_data_flux[instr] = self.PHOT_data_flux[instr]/extinction
+            # self.PHOT_data_err[instr] = self.PHOT_data_err[instr]/extinction
+            
+            # calculate extinction of phot. filter profile following species
+            extinction = get_extinction(self.PHOT_data_filter[instr][0],Av)
+            dereden = 1./extinction
+            dereden_phot_factor = synthetic_photometry(self.PHOT_data_filter[instr][0],dereden,self.PHOT_filter_function[instr])
+            self.PHOT_data_flux[instr] = self.PHOT_data_flux[instr]*dereden_phot_factor
+            
         print('Done!')
     
     def rescale_CC_data(self,scale=1e-15):
@@ -164,6 +173,19 @@ class Data:
             std = np.std(self.CC_data_flux[instr])
             self.CC_data_flux[instr] = self.CC_data_flux[instr]*scale/std
             self.CC_data_sf2[instr]  = 1./len(self.CC_data_wlen[instr])*np.sum(self.CC_data_flux[instr]**2)
+    
+    def calculate_weights(self):
+        weights = {}
+        
+        # photometry:
+        # w = equivalent width
+        for instr in self.PHOT_data_flux.keys():
+            weights[instr] = self.PHOT_filter_width[instr]
+        # CC and RES
+        # w = lambda/R
+        for file_key,wlen in {**self.CC_data_wlen,**self.RES_data_wlen}.items():
+            weights[file_key] = wlen/self.spectral_resolution
+        return weights
     
     def getCCSpectrum(self):
         return self.CC_data_wlen,self.CC_data_flux

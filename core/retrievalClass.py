@@ -54,6 +54,15 @@ class Retrieval:
 
         self.params_names = self.prior_obj.params_names
         print('PARAMETERS',self.params_names)
+
+        if 'apply_weights' in self.config['data'].keys():
+            self.apply_weights = str(self.config['data']['apply_weights']) == 'True'
+        else:
+            self.apply_weights = False
+        
+        self.weights = {}
+        if self.apply_weights:
+            self.weights = self.data_obj.calculate_weights()
         
         # meta data
         self.retrieval_name = self.config['metadata']['retrieval_id']
@@ -310,7 +319,11 @@ class Retrieval:
         print('C-C: ',CC_max)
         print('sf2 (D): ',data_sf2_scaled)
         print('sg2 (M): ',s_g2)
-        log_L_CC += -data_N*np.log(log_term)/2
+        if self.apply_weights:
+            weight_factor = np.mean(self.weights[data_key])
+        else:
+            weight_factor = 1.
+        log_L_CC += - weight_factor*data_N*np.log(log_term)/2
         
         # diagnostic for C-C log
         self.diag_sg2 = s_g2
@@ -323,7 +336,8 @@ class Retrieval:
     def calc_log_L_PHOT(
         self,
         wlen,
-        flux):
+        flux
+    ):
         
         log_L_PHOT = 0.
         
@@ -341,7 +355,10 @@ class Retrieval:
                 self.NaN_photometry += 1
                 return -1e299,model_photometry,wlen_rebin,flux_rebin
             
-            log_L_PHOT += -0.5*((model_photometry[instr]-PHOT_flux[instr])/PHOT_flux_err[instr])**2
+            if self.apply_weights:
+                log_L_PHOT += -0.5*self.weights[instr]*((model_photometry[instr]-PHOT_flux[instr])/PHOT_flux_err[instr])**2
+            else:
+                log_L_PHOT += -0.5*((model_photometry[instr]-PHOT_flux[instr])/PHOT_flux_err[instr])**2
         
         return log_L_PHOT,model_photometry
     
@@ -353,7 +370,7 @@ class Retrieval:
         data_key,
         wlen_data,
         flux_data,
-        flux_err,
+        flux_cov,
         inverse_cov,
         flux_data_std,
         mode='lbl'):
@@ -369,9 +386,40 @@ class Retrieval:
         flux_scaling_key = '%s___%s' % (data_key,'flux_scaling')
         flux_data_scaled = data_params[flux_scaling_key]*flux_data
         error_scaling_key = '%s___%s' % (data_key,'error_scaling')
-        inverse_cov_scaled = inverse_cov/data_params[error_scaling_key]**2
+        # old cov scaling
+        # inverse_cov_scaled = inverse_cov/data_params[error_scaling_key]**2
         
-        log_L_RES += -0.5*np.dot((flux_data_scaled-flux_rebin),np.dot(inverse_cov_scaled,(flux_data_scaled-flux_rebin)))
+        # need to follow species (see Piette & Madhusudhan 2020)
+        data_var = data_params[flux_scaling_key]**2 * flux_data_std ** 2 # variance of data
+        
+        # only change the inverse cov matrix if the error scaling is not 1.
+        if np.abs(data_params[error_scaling_key] - 1.) < 1e-5:
+            data_var += (data_params[error_scaling_key] * flux) ** 2 # variance of model
+            # Ratio of the inflated and original uncertainties
+            sigma_ratio = np.sqrt(data_var) / (
+                data_params[flux_scaling_key] * flux_data_std
+            )
+            sigma_j, sigma_i = np.meshgrid(sigma_ratio, sigma_ratio)
+            
+            # Calculate the inverted matrix of the inflated covariances
+            inverse_cov_scaled = np.linalg.inv(
+                data_params[flux_scaling_key]**2
+                * sigma_i
+                * sigma_j
+                * flux_cov
+            )
+        else:
+            inverse_cov_scaled = inverse_cov/data_params[flux_scaling_key]**2
+        
+        
+        if self.apply_weights:
+            log_L_RES += -0.5*np.dot(self.weights[data_key]*(flux_data_scaled-flux_rebin),np.dot(inverse_cov_scaled,(flux_data_scaled-flux_rebin)))
+        else:
+            log_L_RES += -0.5*np.dot((flux_data_scaled-flux_rebin),np.dot(inverse_cov_scaled,(flux_data_scaled-flux_rebin)))
+        
+        # if the retrieval includes a scaling for the data or error, then the prefactor in the likelihood is not constant and cannot be removed
+        # this is constant if no scaling is included, and shouldn't influence the retrieval
+        log_L_RES += np.nansum(np.log(2.0 * np.pi * data_var))
         
         if sum(np.isnan(flux_rebin))>0 or np.isnan(log_L_RES):
             self.NaN_spectRES += 1
@@ -451,7 +499,7 @@ class Retrieval:
         wlen_ck,flux_ck,wlen_lbl,flux_lbl = None,None,None,None
         
         if self.data_obj.RESinDATA():
-            RES_data_wlen,RES_data_flux,flux_err,inverse_cov,flux_data_std = self.data_obj.getRESSpectrum()
+            RES_data_wlen,RES_data_flux,flux_cov,inverse_cov,flux_data_std = self.data_obj.getRESSpectrum()
         
         # evaluate log-likelihood for FM using c-k mode
         wlen_RES,flux_RES = {},{}
@@ -478,7 +526,8 @@ class Retrieval:
                 # print('c-k photometry Log-L')
                 log_L_PHOT,model_photometry = self.calc_log_L_PHOT(
                     wlen=wlen_ck_SI,
-                    flux=flux_ck_SI_scaled)
+                    flux=flux_ck_SI_scaled
+                )
             
             if self.data_obj.RES_data_with_ck:
                 for instr in RES_data_wlen.keys():
@@ -491,7 +540,7 @@ class Retrieval:
                             data_key=instr,
                             wlen_data=RES_data_wlen[instr],
                             flux_data=RES_data_flux[instr],
-                            flux_err=flux_err[instr],
+                            flux_cov=flux_cov[instr],
                             inverse_cov=inverse_cov[instr],
                             flux_data_std=flux_data_std[instr],
                             mode='c-k')
@@ -549,7 +598,7 @@ class Retrieval:
                                     data_key=instr,
                                     wlen_data=RES_data_wlen[instr],
                                     flux_data=RES_data_flux[instr],
-                                    flux_err=flux_err[instr],
+                                    flux_cov=flux_cov[instr],
                                     inverse_cov=inverse_cov[instr],
                                     flux_data_std=flux_data_std[instr],
                                     mode='lbl')
