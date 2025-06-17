@@ -174,7 +174,7 @@ def plot_data(config,
         ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
         ax.set_xlim((xmin,xmax))
         plot_i += 2
-
+    
     if spectrum_contrem_plot:
         ax = plt.subplot(nb_plots,1,plot_i)
         print('new plot',plot_i)

@@ -184,7 +184,7 @@ class Data:
         # CC and RES
         # w = lambda/R
         for file_key,wlen in {**self.CC_data_wlen,**self.RES_data_wlen}.items():
-            weights[file_key] = wlen/self.spectral_resolution
+            weights[file_key] = wlen/self.spectral_resolution[file_key]
         return weights
     
     def getCCSpectrum(self):
