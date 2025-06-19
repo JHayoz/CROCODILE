@@ -54,6 +54,7 @@ def plot_data(config,
               fontsize=15,
               plot_errorbars=True,
               save_plot=True,
+              save_dpi = 300,
               extinction = None
              ):
     
@@ -93,6 +94,11 @@ def plot_data(config,
         xmin = np.min([xmin,min([min(wlen) for wlen in list(CC_wlen.values())])])
         xmax = np.max([xmax,max([max(wlen) for wlen in list(CC_wlen.values())])])
 
+    if xmax - xmin > 8:
+        x_scale = 'log'
+    else:
+        x_scale = 'linear'
+
     fig = plt.figure(figsize=(10,2*nb_plots))
     plot_i=1
     """FILTER TRANSMISSION FUNCTION"""
@@ -119,6 +125,7 @@ def plot_data(config,
         ax.set_ylabel(filter_label,fontsize=fontsize)
         ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
         ax.set_xlim((xmin,xmax))
+        ax.set_xscale(x_scale)
         
         plot_i += 1
 
@@ -166,13 +173,14 @@ def plot_data(config,
 
         """SIMULATED SPECTRUM FOR SIMULATED DATA"""
         if PHOT_sim_wlen is not None:
-            ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k')
+            ax = custom_plot(ax,PHOT_sim_wlen,PHOT_sim_flux,color='k',zorder=0)
         
         ax.legend()
         ax.set_xlabel(wvl_label,fontsize=fontsize)
         ax.set_ylabel(flux_label,fontsize=fontsize)
         ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
         ax.set_xlim((xmin,xmax))
+        ax.set_xscale(x_scale)
         plot_i += 2
     
     if spectrum_contrem_plot:
@@ -190,6 +198,7 @@ def plot_data(config,
         ax.set_ylabel(CC_flux_label,fontsize=fontsize)
         ax.tick_params(axis='both',which='both',labelsize=fontsize-2)
         ax.set_xlim((xmin,xmax))
+        ax.set_xscale(x_scale)
     if extinction is None:
         use_extinction = 0
     else:
@@ -206,9 +215,10 @@ def plot_data(config,
             except FileExistsError:
                 print('Error avoided')
         #fig.tight_layout()
-        fig.savefig(output_file_path / ('%s.png' % plot_name),dpi=300,bbox_inches = 'tight',pad_inches = 0)
+        fig.savefig(output_file_path / ('%s.png' % plot_name),dpi=save_dpi,bbox_inches = 'tight',pad_inches = 0)
         #fig.savefig(output_file_path/ ('%s.pdf' % plot_name),dpi=300)#,bbox_inches = 'tight',pad_inches = 0)
-    return fig
+    else:
+        return fig
 
 def plot_data_old(config,
               CC_wlen = None,

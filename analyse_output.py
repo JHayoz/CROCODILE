@@ -19,7 +19,7 @@ from core.data import Data
 from core.priors import Prior
 from core.read import open_config,retrieve_samples,save_samples,create_dir,read_samples
 from core.retrievalClass import Retrieval
-from core.plotting_output import plot_corner,plot_CO_ratio,plot_FeH_ratio,plot_retrieved_temperature_profile,plot_retrieved_spectra
+from core.plotting_output import plot_corner,plot_CO_ratio,plot_FeH_ratio,plot_retrieved_temperature_profile,plot_retrieved_spectra,plot_retrieved_teff
 
 print('... DONE')
 
@@ -147,7 +147,6 @@ def main(config_file_path,retrieval_results_dir,plot_output_dir):
         for_analysis=True,
         continue_retrieval = False)
     
-    
     print('Plotting retrieved SED')
     plot_retrieved_spectra(
         config_file,
@@ -157,6 +156,18 @@ def main(config_file_path,retrieval_results_dir,plot_output_dir):
         title='Retrieved SED for retrieval %s' % retrieval_id,
         save_plot = True,
         output_file=savefile_prefix + '05_retrievedSED.png')
+    
+    # print('Computing retrieved Teff')
+    # plot_retrieved_teff(
+    #     config_file,
+    #     retrieval,
+    #     samples,
+    #     nb_picks=1000,
+    #     wlen_borders = [0.5,10],
+    #     title='Retrieved Teff for retrieval %s' % retrieval_id,
+    #     save_plot = True,
+    #     output_file=savefile_prefix + '06_retrievedTeff.png'
+    # )
     print('DONE')
     
 if __name__ == "__main__":

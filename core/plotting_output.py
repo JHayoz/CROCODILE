@@ -14,6 +14,7 @@ from pathlib import Path
 from PyAstronomy.pyasl import crosscorrRV
 from seaborn import color_palette
 import random
+from scipy.constants import Stefan_Boltzmann
 
 from core.data import Data
 from core.priors import Prior
@@ -312,7 +313,6 @@ def plot_retrieved_spectra(
     sim_samples = pick_sampled_spectra(samples=samples,nb_picks=nb_picks)
     # get median of posterior
     median_sample = sim_samples[-1]
-    print(sim_samples)
     model_sim_wlen = {}
     model_sim_flux = {}
     wlen_CC,flux_CC = {},{}
@@ -321,9 +321,7 @@ def plot_retrieved_spectra(
     if not retrieval.forwardmodel_ck is None:
         print('Calculating c-k spectra')
         # calculate spectra using samples
-        wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample = calc_sampled_spectra_ck(retrieval,sim_samples=sim_samples)
-        print(wlen_sample.keys())
-        print(wlen_sample)
+        wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample = calc_sampled_spectra_ck(retrieval,retrieval.forwardmodel_ck,sim_samples=sim_samples)
         # get posterior SED
         wlen_arr = wlen_sample[0]
         
@@ -383,8 +381,8 @@ def plot_retrieved_spectra(
               PHOT_flux = PHOT_flux,
               PHOT_flux_err = PHOT_flux_err,
               PHOT_filter = filt,
-              PHOT_sim_wlen = {},
-              PHOT_sim_flux = {},
+              PHOT_sim_wlen = model_sim_wlen,
+              PHOT_sim_flux = model_sim_flux,
               model_PHOT_flux = model_photometry,
               inset_plot = True,
               output_file = str(Path(save_file_SED).parent),
@@ -603,13 +601,12 @@ def pick_sampled_spectra(
 
 def calc_sampled_spectra_ck(
     retrieval,
+    forwardmodel,
     sim_samples
 ):
     
     wlen_sample_ck,flux_sample_ck = {},{}
     wlen_sample,flux_sample = {},{}
-    print(sim_samples)
-    print(len(sim_samples))
     for sample_i in range(len(sim_samples)):
         print('Sample progress: %.2f' % ((sample_i+1)*100/len(sim_samples)),end='\r')
         
@@ -622,18 +619,17 @@ def calc_sampled_spectra_ck(
             extract_param=True)
         # evaluate log-likelihood for FM using c-k mode
         
-        if retrieval.forwardmodel_ck is not None:
-            wlen_sample_ck[sample_i], flux_sample_ck[sample_i] = retrieval.forwardmodel_ck.calc_spectrum(
-                      chem_model_params = chem_params,
-                      temp_model_params = temp_params,
-                      cloud_model_params = clouds_params,
-                      physical_params = physical_params,
-                      external_pt_profile = None,
-                      return_profiles = False)
-            wlen_ck_SI,flux_ck_SI = convert_units_to_SI(wlen_sample_ck[sample_i], flux_sample_ck[sample_i])
-            flux_ck_SI_scaled = scale_flux(flux_ck_SI,radius=physical_params['R'],distance=physical_params['distance'])
-            
-            wlen_sample[sample_i], flux_sample[sample_i] = wlen_ck_SI,flux_ck_SI_scaled
+        wlen_sample_ck[sample_i], flux_sample_ck[sample_i] = forwardmodel.calc_spectrum(
+                  chem_model_params = chem_params,
+                  temp_model_params = temp_params,
+                  cloud_model_params = clouds_params,
+                  physical_params = physical_params,
+                  external_pt_profile = None,
+                  return_profiles = False)
+        wlen_ck_SI,flux_ck_SI = convert_units_to_SI(wlen_sample_ck[sample_i], flux_sample_ck[sample_i])
+        flux_ck_SI_scaled = scale_flux(flux_ck_SI,radius=physical_params['R'],distance=physical_params['distance'])
+        
+        wlen_sample[sample_i], flux_sample[sample_i] = wlen_ck_SI,flux_ck_SI_scaled
     print()
     return wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample
 
@@ -663,7 +659,7 @@ def calc_model_spectroscopy_ck(
                     data_key=instr,
                     wlen_data=RES_data_wlen[instr],
                     flux_data=RES_data_flux[instr],
-                    flux_err=flux_err[instr],
+                    flux_cov=flux_err[instr],
                     inverse_cov=inverse_cov[instr],
                     flux_data_std=flux_data_std[instr],
                     mode='c-k')
@@ -730,8 +726,80 @@ def calc_sampled_spectra_lbl(
                                 data_key=instr,
                                 wlen_data=RES_data_wlen[instr],
                                 flux_data=RES_data_flux[instr],
-                                flux_err=flux_err[instr],
+                                flux_cov=flux_err[instr],
                                 inverse_cov=inverse_cov[instr],
                                 flux_data_std=flux_data_std[instr],
                                 mode='lbl')
     return wlen_CC,flux_CC,wlen_RES,flux_RES
+
+def plot_retrieved_teff(
+    config_file,
+    retrieval,
+    samples,
+    nb_picks=5,
+    wlen_borders = [0.2,15],
+    title='Retrieved Teff',
+    save_plot = True,
+    output_file=''
+):
+    output_file_path = Path(output_file)
+    plot_extension = output_file_path.suffix
+    if plot_extension not in file_extensions:
+        plot_extension = '.png'
+    save_file = str(output_file_path.parent / output_file_path.stem ) + plot_extension
+    
+    # first need to create a new forward model that extends over a large range of wavelength
+    if retrieval.config['retrieval']['FM']['clouds']['opacities'] is None:
+        cloud_species = None
+    else:
+        cloud_species = retrieval.config['retrieval']['FM']['clouds']['opacities'].copy()
+    forwardmodel_teff = ForwardModel(
+         wlen_borders = wlen_borders,
+         max_wlen_stepsize = 0,
+         mode = 'c-k',
+         line_opacities = retrieval.abundances_ck,
+         cont_opacities= ['H2-H2','H2-He'],
+         rayleigh_scat = ['H2','He'],
+         cloud_model = retrieval.cloud_model,
+         cloud_species = cloud_species,
+         do_scat_emis = retrieval.config['retrieval']['FM']['clouds']['scattering_emission'],
+         chem_model = retrieval.chem_model,
+         temp_model = retrieval.temp_model,
+         max_RV = 0,
+         max_winlen = 0,
+         include_H2 = True,
+         only_include = 'all'
+         )
+    forwardmodel_teff.calc_rt_obj(lbl_sampling = 5)
+    # pick samples
+    print('Picking samples')
+    sim_samples = pick_sampled_spectra(samples=samples,nb_picks=nb_picks)
+
+    # create spectra from samples
+    print('Calculating c-k spectra')
+    wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample = calc_sampled_spectra_ck(retrieval,forwardmodel_teff,sim_samples=sim_samples)
+    
+    # compute Teff from Stefan-Boltzmann law
+    teff_samples = np.zeros((nb_picks))
+    for spectrum_i in range(nb_picks):
+        wlen_sample[spectrum_i]
+        flux_sample[spectrum_i]
+        energy = np.trapz(y=flux_sample[spectrum_i],x=wlen_sample[spectrum_i])
+        teff = (energy/Stefan_Boltzmann)**0.25
+        teff_samples[spectrum_i] = teff
+    
+    # plot histogram
+    quantiles = get_std_percentiles(nb_stds=1)
+    teff_quantiles = np.quantile(teff_samples,q=quantiles,axis = 0)
+    plt.figure()
+    plt.hist(teff_samples)
+    plt.axvline(teff_quantiles[0],color='k')
+    for std_i in range(2):
+        plt.axvline(teff_quantiles[2*std_i],ls='--',color='k')
+    plt.title(r'$T_{eff}$ = ' + quantiles_to_string(teff_quantiles,decimals=1) + ' K')
+    plt.xlabel(r'$T_{eff}$ [K]')
+    if save_plot:
+        plt.savefig(save_file,dpi=300)
+    plt.show()
+    
+    

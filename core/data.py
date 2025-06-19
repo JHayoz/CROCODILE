@@ -180,7 +180,7 @@ class Data:
         # photometry:
         # w = equivalent width
         for instr in self.PHOT_data_flux.keys():
-            weights[instr] = self.PHOT_filter_width[instr]
+            weights[instr] = self.PHOT_filter_width[instr]/2
         # CC and RES
         # w = lambda/R
         for file_key,wlen in {**self.CC_data_wlen,**self.RES_data_wlen}.items():

@@ -21,7 +21,7 @@ from os import path
 
 from config_petitRADTRANS import *
 from core.util import name_lbl_to_ck,convert_units_to_SI,scale_flux
-from core.read import read_forward_model_from_config
+from core.read import read_forward_model_from_config,create_dir
 from core.forward_model import ForwardModel
 from core.rebin import rebin_to_RES,rebin_to_CC,rebin_to_PHOT,doppler_shift
 from core.plotting import plot_data
@@ -102,8 +102,7 @@ class Retrieval:
                 open(self.diag_CC_file,'w').close()
             
             if self.plotting:
-                if not os.path.exists(self.output_path / 'model'):
-                    os.mkdir(self.output_path / 'model')
+                create_dir(self.output_path / 'model')
         
         
         self.data_obj.distribute_FMs()
@@ -392,9 +391,9 @@ class Retrieval:
         # need to follow species (see Piette & Madhusudhan 2020)
         data_var = data_params[flux_scaling_key]**2 * flux_data_std ** 2 # variance of data
         
-        # only change the inverse cov matrix if the error scaling is not 1.
-        if np.abs(data_params[error_scaling_key] - 1.) < 1e-5:
-            data_var += (data_params[error_scaling_key] * flux) ** 2 # variance of model
+        # only change the inverse cov matrix if the error scaling is NOT 1.
+        if np.abs(data_params[error_scaling_key] - 1.) > 1e-5:
+            data_var += (data_params[error_scaling_key] * flux_rebin) ** 2 # variance of model
             # Ratio of the inflated and original uncertainties
             sigma_ratio = np.sqrt(data_var) / (
                 data_params[flux_scaling_key] * flux_data_std
@@ -419,7 +418,8 @@ class Retrieval:
         
         # if the retrieval includes a scaling for the data or error, then the prefactor in the likelihood is not constant and cannot be removed
         # this is constant if no scaling is included, and shouldn't influence the retrieval
-        log_L_RES += np.nansum(np.log(2.0 * np.pi * data_var))
+        if np.abs(data_params[error_scaling_key] - 1.) > 1e-5 or np.abs(data_params[flux_scaling_key] - 1.) > 1e-5:
+            log_L_RES += -0.5*np.nansum(np.log(2.0 * np.pi * data_var))
         
         if sum(np.isnan(flux_rebin))>0 or np.isnan(log_L_RES):
             self.NaN_spectRES += 1
@@ -694,7 +694,9 @@ class Retrieval:
                             model_PHOT_flux = model_photometry,
                             output_file = str(self.output_path / 'model'),
                             plot_name = 'plot_%s' % int(self.function_calls/self.plotting_threshold),
-                            save_plot=True)
+                            save_plot=True,
+                            save_dpi=50,
+                            extinction=self.data_obj.extinction)
                 
                 # plot CCF function
                 plot_path = self.output_path / 'model' / ('CC_fct_%s.png' % int(self.function_calls/self.plotting_threshold))

@@ -140,7 +140,7 @@ class ForwardModel:
         extensions += 10*self.max_wlen_stepsize
         
         # Continuum-removed
-        extensions += 2*self.max_wlen_stepsize*(self.max_winlen+3)
+        extensions += 2*self.max_wlen_stepsize*(self.max_winlen)
         
         # adjust wvl range
         self.wlen_borders[0] -= extensions

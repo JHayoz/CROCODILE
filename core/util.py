@@ -244,6 +244,8 @@ def nice_name(molecule):
             final_string += '$_{'+char+'}$'
         else:
             final_string += char
+    if molecule in ['CO_36','13CO']:
+        final_string = '$^{13}$C$^{16}$O'
     return final_string
 
 def abundance_param_to_nice(param):
@@ -481,20 +483,23 @@ def CO_ratio_mass(abundances):
     mass_Os = 0.
     mass_Cs = 0.
     for j,name in enumerate(abundances.keys()):
-        mass_Os += 16*nb_Os(name)*10**abundances[name]
-        mass_Cs += 12*nb_Cs(name)*10**abundances[name]
+        mass_Os += nb_Os(name)*10**abundances[name]
+        mass_Cs += nb_Cs(name)*10**abundances[name]
     if not(mass_Os == 0):
         RATIO = mass_Cs/mass_Os
     else:
         print('there is no oxygen')
         RATIO = 1e20
     return RATIO
+
 def CO_ratio_correct(abundances):
     n_Cs = 0
     n_Os = 0
     for key in abundances.keys():
-        n_Cs += nb_Cs(key)*10**abundances[key]/get_MMWs(key)
-        n_Os += nb_Os(key)*10**abundances[key]/get_MMWs(key)
+        if nb_Cs(name) > 0:
+            n_Cs += nb_Cs(key)*10**abundances[key]/get_MMWs(key)
+        if nb_Os(name) > 0:
+            n_Os += nb_Os(key)*10**abundances[key]/get_MMWs(key)
     return n_Cs/n_Os
     
     
