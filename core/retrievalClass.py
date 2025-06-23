@@ -64,6 +64,8 @@ class Retrieval:
         if self.apply_weights:
             self.weights = self.data_obj.calculate_weights()
         
+        print('Applying weights: %s' % str(self.apply_weights))
+        
         # meta data
         self.retrieval_name = self.config['metadata']['retrieval_id']
         self.output_path = Path(self.config['metadata']['output_dir'])
