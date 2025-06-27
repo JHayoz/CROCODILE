@@ -88,7 +88,27 @@ def plot_corner(
         fig.savefig(save_file,dpi=300)
     else:
         plt.show()
-
+def plot_histogram(
+    samples_param,
+    figsize,
+    ax,
+    label,
+    color,
+    lw,
+    include_quantiles,
+):
+    quantiles = np.quantile(samples_param,q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2])
+    if include_quantiles:
+        label_draw = label + quantiles_to_string(quantiles)
+    else:
+        label_draw = label
+    ax.hist(samples_param,bins = 40,color=color,density = True,alpha=0.5,label=label_draw)
+    ax.axvline(quantiles[1],color=color,lw=lw,ls='--')
+    if include_quantiles:
+        ax.axvline(quantiles[0],color=color,ls='--',lw=lw)
+        ax.axvline(quantiles[2],color=color,ls='--',lw=lw)
+    return ax
+    
 def plot_CO_ratio(
     config_file,
     samples,
@@ -128,12 +148,16 @@ def plot_CO_ratio(
     if ax is None:
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
-    quantiles = np.quantile(CO_ratio_samples,q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2])
-    ax.hist(CO_ratio_samples,bins = 40,color=color,density = True,alpha=0.5,label=label + quantiles_to_string(quantiles))
-    ax.axvline(quantiles[1],color=color,lw=lw,ls='--')
-    if include_quantiles:
-        ax.axvline(quantiles[0],color=color,ls='--',lw=lw)
-        ax.axvline(quantiles[2],color=color,ls='--',lw=lw)
+
+    ax = plot_histogram(
+        samples_param = CO_ratio_samples,
+        figsize = figsize,
+        ax = ax,
+        label = label,
+        color = color,
+        lw = lw,
+        include_quantiles = include_quantiles
+    )
     ax.set_xlabel('C/O ratio (MMR)',fontsize=fontsize)
     ax.set_ylabel('Probability distribution',fontsize=fontsize)
     ax.tick_params(axis='y',which='both',left=False,right=False,labelleft=False)
@@ -144,7 +168,7 @@ def plot_CO_ratio(
     if save_plot:
         fig.savefig(save_file,dpi=300)
     else:
-        plt.show()
+        return ax
 
 def plot_FeH_ratio(
     config_file,
@@ -183,12 +207,16 @@ def plot_FeH_ratio(
     if ax is None:
         fig = plt.figure(figsize=figsize)
         ax = fig.gca()
-    quantiles = np.quantile(FeH_ratio_samples,q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2])
-    ax.hist(FeH_ratio_samples,bins = 40,color=color,density = True,alpha=0.5,label=label + quantiles_to_string(quantiles))
-    ax.axvline(quantiles[1],color=color,lw=lw,ls='--')
-    if include_quantiles:
-        ax.axvline(quantiles[0],color=color,ls='--',lw=lw)
-        ax.axvline(quantiles[2],color=color,ls='--',lw=lw)
+
+    ax = plot_histogram(
+        samples_param = FeH_ratio_samples,
+        figsize = figsize,
+        ax = ax,
+        label = label,
+        color = color,
+        lw = lw,
+        include_quantiles = include_quantiles
+    )
     ax.set_xlabel('[Fe/H] (dex)',fontsize=fontsize)
     ax.set_ylabel('Probability distribution',fontsize=fontsize)
     ax.tick_params(axis='y',which='both',left=False,right=False,labelleft=False)
@@ -198,7 +226,7 @@ def plot_FeH_ratio(
     if save_plot:
         fig.savefig(save_file,dpi=300)
     else:
-        plt.show()
+        return ax
 
 def plot_retrieved_temperature_profile(
     config_file,
@@ -209,6 +237,7 @@ def plot_retrieved_temperature_profile(
     figsize=(8,4),
     color = 'g',
     label='T$_{\mathrm{equ}}=$',
+    include_quantiles = True,
     plot_data = True,
     plot_label=True,
     ax = None,
@@ -260,15 +289,26 @@ def plot_retrieved_temperature_profile(
                                                            q=[(1-0.6827)/2,0.5,1-(1-0.6827)/2]),decimals = 0) + ' K'
     else:
         median_label = label
-    ax.plot(quantile_curves[nb_stds],pressures,color=color,ls=':',label=median_label)
+    
+    if include_quantiles:
+        label_draw = median_label
+    else:
+        label_draw = label
+    
+    if nb_stds == 0:
+        ax.plot(quantile_curves[nb_stds],pressures,color=color,ls=':',label=label_draw)
+    else:
+        ax.plot(quantile_curves[nb_stds],pressures,color=color,ls=':')
 
     
     if nb_stds > 0:
         for std_i in range(1,nb_stds+1):
             lower_curve = quantile_curves[nb_stds - std_i]
             higher_curve = quantile_curves[nb_stds + std_i]
-            
-            ax.fill_betweenx(pressures,lower_curve,higher_curve,color = color,alpha=1/(std_i+3))
+            if std_i == 1:
+                ax.fill_betweenx(pressures,lower_curve,higher_curve,color = color,alpha=1/(std_i+3),label=label_draw)
+            else:
+                ax.fill_betweenx(pressures,lower_curve,higher_curve,color = color,alpha=1/(std_i+3))
             
     ax.set_yscale('log')
     ax.invert_yaxis()
@@ -282,32 +322,14 @@ def plot_retrieved_temperature_profile(
     if save_plot:
         fig.savefig(save_file,dpi=300)
     else:
-        plt.show()
+        return ax
 
-def plot_retrieved_spectra(
-    config_file,
+def calc_retrieved_spectra(
     retrieval,
     samples,
     nb_picks=100,
-    fontsize = 10,
-    title='Retrieved spectrum',
-    save_plot = True,
-    output_file=''
+    calc_contribution=False
 ):
-    # prepare save file
-    output_file_path = Path(output_file)
-    plot_extension = output_file_path.suffix
-    if plot_extension not in file_extensions:
-        plot_extension = '.png'
-    save_file_SED = str(output_file_path.parent / output_file_path.stem) + '_SED' + plot_extension
-    save_file_contrem = str(output_file_path.parent / output_file_path.stem) + '_contrem' + plot_extension
-    save_file_CCF = str(output_file_path.parent / output_file_path.stem) + '_CCF' + plot_extension
-
-    wvl_label = 'Wavelength [$\mu$m]'
-    filter_label = 'Filter trsm.'
-    flux_label = 'Flux [Wm$^{-2}\mu$m$^{-1}$]'
-    CC_flux_label = 'Residuals [Wm$^{-2}\mu$m$^{-1}$]'
-    
     print('Picking samples')
     # pick samples
     sim_samples = pick_sampled_spectra(samples=samples,nb_picks=nb_picks)
@@ -321,11 +343,12 @@ def plot_retrieved_spectra(
     if not retrieval.forwardmodel_ck is None:
         print('Calculating c-k spectra')
         # calculate spectra using samples
-        wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample = calc_sampled_spectra_ck(retrieval,retrieval.forwardmodel_ck,sim_samples=sim_samples)
+        wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample,em_contr_fct = calc_sampled_spectra_ck(
+            retrieval,retrieval.forwardmodel_ck,sim_samples=sim_samples,calc_contribution=calc_contribution)
         # get posterior SED
         wlen_arr = wlen_sample[0]
         
-        nb_random_samples = np.min([nb_picks,len(sim_samples)])
+        nb_random_samples = np.max([nb_picks,len(sim_samples)])
         flux_arr = np.zeros((nb_random_samples,len(flux_sample[0])))
         for sample_i in range(nb_random_samples):
             flux_arr[sample_i] = flux_sample[sample_i]
@@ -355,6 +378,41 @@ def plot_retrieved_spectra(
         print('Calculating lbl spectrum')
         # get model high-resolution spectroscopy
         wlen_CC,flux_CC,wlen_RES,flux_RES = calc_sampled_spectra_lbl(retrieval,median_sample,wlen_RES,flux_RES)
+    emission_contribution = None
+    if calc_contribution:
+        emission_contribution = em_contr_fct[len(sim_samples)-1]
+    return model_sim_wlen,model_sim_flux,wlen_CC,flux_CC,wlen_RES,flux_RES,model_photometry,flux_quantiles,wlen_arr,flux_median,emission_contribution
+
+def plot_retrieved_spectra(
+    config_file,
+    retrieval,
+    samples,
+    nb_picks=100,
+    fontsize = 10,
+    title='Retrieved spectrum',
+    save_plot = True,
+    output_file='',
+    ax=None
+):
+    # prepare save file
+    output_file_path = Path(output_file)
+    plot_extension = output_file_path.suffix
+    if plot_extension not in file_extensions:
+        plot_extension = '.png'
+    save_file_SED = str(output_file_path.parent / output_file_path.stem) + '_SED' + plot_extension
+    save_file_contrem = str(output_file_path.parent / output_file_path.stem) + '_contrem' + plot_extension
+    save_file_CCF = str(output_file_path.parent / output_file_path.stem) + '_CCF' + plot_extension
+
+    wvl_label = 'Wavelength [$\mu$m]'
+    filter_label = 'Filter trsm.'
+    flux_label = 'Flux [Wm$^{-2}\mu$m$^{-1}$]'
+    CC_flux_label = 'Residuals [Wm$^{-2}\mu$m$^{-1}$]'
+
+    model_sim_wlen,model_sim_flux,wlen_CC,flux_CC,wlen_RES,flux_RES,model_photometry,flux_quantiles,wlen_arr,flux_median,emission_contribution = calc_retrieved_spectra(
+        retrieval,
+        samples,
+        nb_picks=nb_picks,
+    )
     
     # get all data
     PHOT_flux,PHOT_flux_err,filt,filt_func,filt_mid,filt_width = retrieval.data_obj.getPhot()
@@ -602,11 +660,13 @@ def pick_sampled_spectra(
 def calc_sampled_spectra_ck(
     retrieval,
     forwardmodel,
-    sim_samples
+    sim_samples,
+    calc_contribution=False
 ):
     
     wlen_sample_ck,flux_sample_ck = {},{}
     wlen_sample,flux_sample = {},{}
+    em_contr_fct = {}
     for sample_i in range(len(sim_samples)):
         print('Sample progress: %.2f' % ((sample_i+1)*100/len(sim_samples)),end='\r')
         
@@ -619,19 +679,25 @@ def calc_sampled_spectra_ck(
             extract_param=True)
         # evaluate log-likelihood for FM using c-k mode
         
-        wlen_sample_ck[sample_i], flux_sample_ck[sample_i] = forwardmodel.calc_spectrum(
+        return_args = forwardmodel.calc_spectrum(
                   chem_model_params = chem_params,
                   temp_model_params = temp_params,
                   cloud_model_params = clouds_params,
                   physical_params = physical_params,
                   external_pt_profile = None,
-                  return_profiles = False)
+                  return_profiles = False,
+                  calc_contribution = calc_contribution
+        )
+        if calc_contribution:
+            wlen_sample_ck[sample_i], flux_sample_ck[sample_i], em_contr_fct[sample_i] = return_args
+        else:
+            wlen_sample_ck[sample_i], flux_sample_ck[sample_i] = return_args
         wlen_ck_SI,flux_ck_SI = convert_units_to_SI(wlen_sample_ck[sample_i], flux_sample_ck[sample_i])
         flux_ck_SI_scaled = scale_flux(flux_ck_SI,radius=physical_params['R'],distance=physical_params['distance'])
         
         wlen_sample[sample_i], flux_sample[sample_i] = wlen_ck_SI,flux_ck_SI_scaled
     print()
-    return wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample
+    return wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample,em_contr_fct
 
 def calc_model_spectroscopy_ck(
     retrieval,
@@ -777,7 +843,8 @@ def plot_retrieved_teff(
 
     # create spectra from samples
     print('Calculating c-k spectra')
-    wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample = calc_sampled_spectra_ck(retrieval,forwardmodel_teff,sim_samples=sim_samples)
+    wlen_sample_ck,flux_sample_ck,wlen_sample,flux_sample,em_contr_fct = calc_sampled_spectra_ck(
+        retrieval,forwardmodel_teff,sim_samples=sim_samples,calc_contribution=False)
     
     # compute Teff from Stefan-Boltzmann law
     teff_samples = np.zeros((nb_picks))
@@ -792,6 +859,7 @@ def plot_retrieved_teff(
     quantiles = get_std_percentiles(nb_stds=1)
     teff_quantiles = np.quantile(teff_samples,q=quantiles,axis = 0)
     plt.figure()
+    ax = plt.gca()
     plt.hist(teff_samples)
     plt.axvline(teff_quantiles[0],color='k')
     for std_i in range(2):
@@ -800,6 +868,7 @@ def plot_retrieved_teff(
     plt.xlabel(r'$T_{eff}$ [K]')
     if save_plot:
         plt.savefig(save_file,dpi=300)
-    plt.show()
+    else:
+        return ax
     
     
