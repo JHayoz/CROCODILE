@@ -31,6 +31,11 @@ def Model_Gauss(x,h,m,s):
     return h/(np.sqrt(2*np.pi)*s)*np.exp(-1/2*((x-m)/s)**2)
 
 def Model_SoftStepG(x,a,b,c,s,e):
+    # a: speed of exponential fall off
+    # b: position of Gaussian and exponential fall off
+    # c: constant value towards lower x
+    # s: spread of Gaussian
+    # e: height of Gaussian, above continuum
     return (c+(e/(np.sqrt(2*np.pi)*s)*np.exp(-(x+b)**2/s**2)))/ (1+np.exp(a*(x+b)))
 
 # Definition of the likelyhood for comparison of different posterior models
@@ -131,15 +136,24 @@ class Handles(HandlerBase):
 def Posterior_Classification_Errorbars(
         mol_sample,
         mol_name,
+        nbins=100,
         p0_SSG = [8,6,0.007,0.5,0.5],
+        is_abundance=True,
         output_dir = '',
-        plotting=False
+        plotting=False,
+        save_plot=False,
         ):
     
     p0_SS=None
     p0_u_SS=None
-    x_bins = np.linspace(-10,0,1000)
-    binned_data = np.histogram(mol_sample,bins=100,density=True)
+    min_x = np.min(mol_sample)
+    max_x = np.max(mol_sample)
+    add = np.abs(max_x - min_x)
+    lower_x = min_x-0.2*add
+    upper_x = max_x+0.2*add
+    x_bins = np.linspace(lower_x,upper_x,nbins)
+    
+    binned_data = np.histogram(mol_sample,bins=nbins,density=True)
     
     max_L = binned_data[1][np.argmax(binned_data[0])]
     
@@ -152,22 +166,27 @@ def Posterior_Classification_Errorbars(
         sigma = 0.1
     
     p0_SSG = [8,-max_L,0.007,sigma,0.5]
-    p0_Gauss=[max(binned_data[0]),max_L,sigma]
-    #print('SSG',p0_SSG)
-    #print('G',p0_Gauss)
+    p0_Gauss=[max(binned_data[0]),np.median(mol_sample),sigma]
+    #p0_Gauss=[np.median(mol_sample),max_L,sigma]
+    print('SSG',p0_SSG)
+    print('G',p0_Gauss)
     model_likelihood = []
+    
                     
     # Try to Fit each model to the retrieved data
     #params_F,params_SS,params_SSG,params_G,params_u_SS = None,None,None,None,None
+    all_models_params = {}
     try:
         params_F,cov_F = sco.curve_fit(Model_Flat,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0])
         model_likelihood.append(log_likelihood(params_F,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],Model_Flat))
+        all_models_params['F'] = params_F
     except:
         model_likelihood.append(-np.inf)
                         
     try:
         params_SS,cov_SS = sco.curve_fit(Model_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SS)
         model_likelihood.append(log_likelihood(params_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],Model_SoftStep))
+        all_models_params['SS'] = params_SS
     except:
         model_likelihood.append(-np.inf)
                     
@@ -175,6 +194,7 @@ def Posterior_Classification_Errorbars(
         params_SSG,cov_SSG = sco.curve_fit(Model_SoftStepG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_SSG)
         model_likelihood.append(log_likelihood(params_SSG,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],Model_SoftStepG))
         line_SSG = Model_SoftStepG(x_bins,*params_SSG)
+        all_models_params['SSG'] = params_SSG
     except:
         model_likelihood.append(-np.inf)
         params_SSG = p0_SSG
@@ -182,48 +202,57 @@ def Posterior_Classification_Errorbars(
     try:
         params_G,cov_G = sco.curve_fit(Model_Gauss,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_Gauss)
         model_likelihood.append(log_likelihood(params_G,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],Model_Gauss))
+        all_models_params['G'] = params_G
     except:
         model_likelihood.append(-np.inf)
 
     try:
         params_u_SS,cov_u_SS = sco.curve_fit(Model_upper_SoftStep,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],p0=p0_u_SS)
         model_likelihood.append(log_likelihood(params_u_SS,(binned_data[1][:-1]+binned_data[1][1:])/2,binned_data[0],Model_upper_SoftStep))
+        all_models_params['USS'] = params_u_SS
     except:
         model_likelihood.append(-np.inf)
     # Select the optimal model for the considered data case
     s_ssg_max=5
     span = 10
     post_limit = 0
-    print(mol_name,model_likelihood)
+    # print(mol_name,model_likelihood)
     #print(params_SSG)
-    if model_likelihood[3]!=-np.inf:
-        if params_G[2]>span/3.0:
-            model_likelihood[3]=-np.inf
-    if model_likelihood[1]!=-np.inf:
-        if Model_SoftStep(post_limit,*params_SS)>=params_SS[-1]/10:
-            model_likelihood[1]=-np.inf
+    if is_abundance:
+        if model_likelihood[3]!=-np.inf:
+            if params_G[2]>span/3.0:
+                # check the sigma of Gaussian, bad if it's bigger than a third of the span
+                print('1')
+                model_likelihood[3]=-np.inf
+        if model_likelihood[2]!=-np.inf:
+            if params_SSG[-2]>=s_ssg_max:
+                # bad if spread of the Gaussian is bigger than s_ssg_max
+                print('5')
+                model_likelihood[2]=-np.inf
     if model_likelihood[2]!=-np.inf:
         if np.max(line_SSG)<=1.4*params_SSG[2] or np.max(line_SSG)>=15*params_SSG[2]:
-            #print('1')
+            # bad if max of SSG model is smaller than c, or bigger than 15 times c
+            print('3')
             model_likelihood[2]=-np.inf
         if line_SSG[0]>=1.05*params_SSG[2]:
-            #print('2')
+            # bad if the first value of SSG is 5% bigger than c
+            print('4')
             model_likelihood[2]=-np.inf
-            """
-        if line_SSG[-1]>=params_SSG[2]/20:
-            #print('3')
-            model_likelihood[2]=-np.inf
-            """
-        if params_SSG[-2]>=s_ssg_max:
-            #print('4')
-            model_likelihood[2]=-np.inf
+    if model_likelihood[1]!=-np.inf:
+        if Model_SoftStep(post_limit,*params_SS)>=params_SS[-1]/10:
+            # check the value of the soft step at post_limit, bad if it's bigger than 1/10 of the step
+            print('2')
+            model_likelihood[1]=-np.inf
     if model_likelihood[4]!=-np.inf:
         if params_u_SS[0]<0:
+            # bad if exponential falloff is negative
+            print('6')
             model_likelihood[4]=-np.inf
     print(mol_name,model_likelihood)
     # Storing the best fit model for the parameters of interest
     #print(model_likelihood)
     best_fit = np.argmax(model_likelihood)
+    
     if best_fit == 0:
         best_post_model = ['F',params_F]
     elif best_fit == 1:
@@ -239,7 +268,7 @@ def Posterior_Classification_Errorbars(
     if plotting:
         fig = plt.figure()
         ax = plt.gca()
-        h = ax.hist(mol_sample,bins=100,alpha=0.2,density=True)
+        h = ax.hist(mol_sample,bins=nbins,alpha=0.2,density=True)
         
         formatting = lambda x: '{v:0.2f}'.format(v=x)
         try:
@@ -267,20 +296,21 @@ def Posterior_Classification_Errorbars(
         except Exception as e:
             print(e)
             pass
-        
         ax.plot([-15,0],[0,0],'k-',alpha=1)
         ax.set_title(mol_name + '\nBest-fit: '+best_post_model[0])
         ax.set_ylim([-max(h[0])/4,1.1*max(h[0])])
-        ax.set_yticks([])
-        ax.set_xticks([])
-        ax.set_xlim((-10,0))
+        # ax.set_yticks([])
+        # ax.set_xticks([])
+        ax.set_xlim((min_x,max_x))
         ax.legend()
-        fig.savefig(output_dir + mol_name +'_classification_plot.png')
-        
+        if save_plot:
+            fig.savefig(output_dir + mol_name +'_classification_plot.png')
     
-    return best_post_model
+    return best_post_model,all_models_params
 
 def log_arrow(mid,width):
+    return [10**(np.log10(mid)-width),mid,10**(np.log10(mid)+width)]
+def normal_arrow(mid,width):
     return [10**(np.log10(mid)-width),mid,10**(np.log10(mid)+width)]
 
 def Errorbars_plot(ax,model,pressure_distr,p_bounds,marker_color,lw = 0.5,un_c_len=2,

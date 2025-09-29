@@ -19,8 +19,8 @@ def create_dir(path):
         print('Avoided error')
     return 
 
-def read_samples(filname):
-    samples_path = Path(filname)
+def read_samples(filename):
+    samples_path = Path(filename)
     if not samples_path.exists():
         print('No samples found for this retrieval')
         return None

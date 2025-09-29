@@ -120,9 +120,11 @@ class Retrieval:
         self.forwardmodel_lbl = None
         self.forwardmodel_ck = None
         
-        if self.data_obj.ck_FM_interval is not None:
+        if (self.data_obj.ck_FM_interval is not None) or for_analysis:
             print('CALLING FORWARD MODEL WITH C-K MODE')
             wlen_borders_ck = self.data_obj.ck_FM_interval
+            if for_analysis:
+                wlen_borders_ck = [np.min([wlen_borders_ck[0],0.4]),np.max([wlen_borders_ck[0],20])]
             if self.config['retrieval']['FM']['clouds']['opacities'] is None:
                 cloud_species = None
             else:

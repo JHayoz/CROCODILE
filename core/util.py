@@ -496,9 +496,9 @@ def CO_ratio_correct(abundances):
     n_Cs = 0
     n_Os = 0
     for key in abundances.keys():
-        if nb_Cs(name) > 0:
+        if nb_Cs(key) > 0:
             n_Cs += nb_Cs(key)*10**abundances[key]/get_MMWs(key)
-        if nb_Os(name) > 0:
+        if nb_Os(key) > 0:
             n_Os += nb_Os(key)*10**abundances[key]/get_MMWs(key)
     return n_Cs/n_Os
     
